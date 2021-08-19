@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/src/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vite + Lit-Element App</title>
+    <script type="module" src="/src/scroll-viewport.ts"></script>
+    <script type="module" src="/src/fixed-size-list.ts"></script>
+    <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        background-color: #ddd;
+      }
+      body {
+        box-sizing: border-box;
+        padding: 100px 20px;
+        align-items: center;
+        justify-content: stretch;
+      }
+      scroll-viewport {
+        background-color: #999;
+        scroll-snap-type: x mandatory;
+      }
+      .block-card-item {
+        height: 200px;
+        box-sizing: border-box;
+        border: 1px solid rgba(0, 0, 0, 0.2);
+        scroll-snap-align: start;
+      }
+      .list-1 .block-card-item {
+        background: linear-gradient(45deg, #2196f3, transparent);
+      }
+      .list-2 .block-card-item {
+        background: linear-gradient(45deg, #e91e63, transparent);
+      }
+    </style>
+  </head>
+  <body>
+    <scroll-viewport>
+      <header>some header content</header>
+      <fixed-size-list
+        class="list-1"
+        item-size="200px"
+        item-count="100"
+        onbuilditem="buildItem(event)"
+        ondestroyitem="destroyItem(event)"
+      >
+        <div class="block-card-item" slot="template">
+          This is child content
+          <div class="height">Height: <span name="height"></span></div>
+          <div class="number-of-trs">
+            Number of Transactions: <span name="numberOfTransactions"></span>
+          </div>
+          <div class="height">Height: <span name="height"></span></div>
+        </div>
+        <p>sadsd</p>
+      </fixed-size-list>
+      <main>some other content</main>
+      <fixed-size-list
+        class="list-2"
+        item-size="200px"
+        item-count="100"
+        onbuilditem="buildItem(event)"
+        ondestroyitem="destroyItem(event)"
+      >
+        <div class="block-card-item" slot="template">
+          This is child content
+          <div class="height">Height: <span name="height"></span></div>
+          <div class="number-of-trs">
+            Number of Transactions: <span name="numberOfTransactions"></span>
+          </div>
+          <div class="height">Height: <span name="height"></span></div>
+        </div>
+        <p>sadsd</p>
+      </fixed-size-list>
+      <footer>some footer content</footer>
+    </scroll-viewport>
+  </body>
+  <script>
+    /**
+     *
+     * @param event {BuildItemEvent}
+     */
+    function buildItem(event) {
+      const { node, index } = event.detail;
+      node.querySelector("[name=height]").innerHTML = index + 1;
+      console.log("%s %cbuild", event.target.className, "color:green", index);
+    }
+    function destroyItem(event) {
+      console.log(
+        "%s %cdestroy",
+        event.target.className,
+        "color:origin",
+        event.detail.index
+      );
+    }
+  </script>
+</html>
