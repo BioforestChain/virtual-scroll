@@ -6,7 +6,6 @@ hostStyle.innerHTML = `
 :host {
   display: block;
   height: calc(var(--item-size) * var(--item-count));
-  overflow: hidden;
   position: relative;
 }
 slot[name="template"] {
@@ -15,8 +14,28 @@ slot[name="template"] {
 ::slotted(*) {
   position: absolute;
   top: 0;
+  transform: var(--virtual-transform)!important;
+  display: var(--virtual-display)!important;
 }
 `;
+
+const observedAttributes = [
+  "item-count" as const,
+  "item-size" as const,
+  "onrenderrangechange" as const,
+  // "onbuilditem",
+  // "ondestroyitem",
+];
+const toInt = (val: unknown) => {
+  const numVal = parseInt(val + "") || 0;
+  return numVal < 0 ? 0 : numVal;
+};
+const toPixel = (val: unknown) => {
+  if (typeof val === "number") {
+    val = (val > 0 ? val : 0) + "px";
+  }
+  return val + "";
+};
 
 export class FixedSizeListBuilderElement<
   T extends HTMLElement = HTMLElement
@@ -67,18 +86,15 @@ export class FixedSizeListBuilderElement<
     shadowRoot.appendChild(itemSlot);
 
     /// 4. bind custom events
-    this.addEventListener("builditem", (event) => {
-      this._itemBuilder?.(event as BuildItemEvent);
-    });
-    this.addEventListener("destroyitem", (event) => {
-      this._itemDestroyer?.(event as DestroyItemEvent);
+    this.addEventListener("renderrangechange", (event) => {
+      this._onrenderrangechange?.(event as RenderRangeChangeEvent);
     });
 
     /// *. bind global
     Reflect.set(self, "l", this);
   }
   private _viewPort: ScrollViewportElement | null = null;
-  private _onScrollInViewPort = (event: Event) => {
+  private _onScrollInViewPort = () => {
     this._renderItems();
   };
   public get viewPort(): ScrollViewportElement | null {
@@ -91,6 +107,7 @@ export class FixedSizeListBuilderElement<
     }
     if ((this._viewPort = value)) {
       value.addEventListener("scroll", this._onScrollInViewPort);
+      value.addEventListener("resize", this._onScrollInViewPort);
       this._renderItems();
     } else {
       this._destroyItems();
@@ -109,25 +126,15 @@ export class FixedSizeListBuilderElement<
     this.viewPort = this.closest("scroll-viewport");
   }
 
-  static get observedAttributes() {
-    return ["item-count", "item-size", "onbuilditem", "ondestroyitem"];
-  }
-  /// 自定义事件 builditem
-  private _itemBuilder?: ItemBuilder;
-  public get itemBuilder(): null | ItemBuilder {
-    return this._itemBuilder || null;
-  }
-  public set itemBuilder(value: null | ItemBuilder) {
-    this._itemBuilder = value || undefined;
-  }
+  static observedAttributes = observedAttributes;
 
   /// 自定义事件 destroyitem
-  private _itemDestroyer?: ItemDestroyer;
-  public get itemDestroyer(): null | ItemDestroyer {
-    return this._itemDestroyer || null;
+  private _onrenderrangechange?: RenderRangeChangeHanlder;
+  public get onrenderrangechange(): null | RenderRangeChangeHanlder {
+    return this._onrenderrangechange || null;
   }
-  public set itemDestroyer(value: null | ItemDestroyer) {
-    this._itemDestroyer = value || undefined;
+  public set onrenderrangechange(value: null | RenderRangeChangeHanlder) {
+    this._onrenderrangechange = value || undefined;
   }
 
   public itemCount = 0;
@@ -136,34 +143,25 @@ export class FixedSizeListBuilderElement<
   private _tplEle?: Element;
   private _templateFactory?: () => T;
 
-  attributeChangedCallback(name: string, oldValue: unknown, newValue: unknown) {
+  attributeChangedCallback(
+    name: typeof observedAttributes[0],
+    oldValue: unknown,
+    newValue: unknown
+  ) {
     if (name === "item-count") {
-      const itemCount = parseInt(newValue + "") || 0;
-      this.itemCount = itemCount < 0 ? 0 : itemCount;
+      this.itemCount = toInt(newValue);
       this._setStyle();
     } else if (name === "item-size") {
-      if (typeof newValue === "number") {
-        newValue = (newValue > 0 ? newValue : 0) + "px";
-      }
-      this.itemSize = newValue + "";
+      this.itemSize = toPixel(newValue);
       this._setStyle();
-    } else if (name === "onbuilditem") {
+    } else if (name === "onrenderrangechange") {
       if (newValue) {
-        this.itemBuilder = Function(
+        this.onrenderrangechange = Function(
           "event",
           `(${newValue})&&event.preventDefault()`
         ) as never;
       } else {
-        this.itemBuilder = null;
-      }
-    } else if (name === "ondestroyitem") {
-      if (newValue) {
-        this.itemDestroyer = Function(
-          "event",
-          `(${newValue})&&event.preventDefault()`
-        ) as never;
-      } else {
-        this.itemDestroyer = null;
+        this.onrenderrangechange = null;
       }
     }
   }
@@ -174,18 +172,32 @@ export class FixedSizeListBuilderElement<
     }`;
     this._renderItems();
   }
-  private _emitBuildItem(info: BuildItemDetail<T>) {
-    const event = new BuildItemEvent("builditem", {
-      detail: info,
-      cancelable: true,
-      bubbles: false,
-      composed: true,
-    });
-
-    this.dispatchEvent(event);
+  private _rangechange_event_collection?: Map<
+    number,
+    RenderRangeChangeEntry<T>
+  >;
+  private _emitRanderItem(item: RenderRangeChangeEntry<T>) {
+    if (!this._rangechange_event_collection) {
+      this._rangechange_event_collection = new Map();
+      const collection = this._rangechange_event_collection;
+      queueMicrotask(() => {
+        if (this._rangechange_event_collection === collection) {
+          this._rangechange_event_collection = undefined;
+        }
+        const entries = [...collection.values()].sort(
+          (a, b) => a.index - b.index
+        );
+        const info: RenderRangeChangeDetail<T> = {
+          entries,
+        };
+        this._emitRenderRangeChange(info);
+      });
+    }
+    this._rangechange_event_collection.set(item.index, item);
   }
-  private _emitDestroyItem(info: DestroyItemDetail<T>) {
-    const event = new DestroyItemEvent("destroyitem", {
+
+  private _emitRenderRangeChange(info: RenderRangeChangeDetail<T>) {
+    const event = new RenderRangeChangeEvent("renderrangechange", {
       detail: info,
       cancelable: true,
       bubbles: false,
@@ -207,30 +219,26 @@ export class FixedSizeListBuilderElement<
     } = this.viewPort;
     const {
       offsetTop: selfOffsetTop,
-      scrollHeight: selfScrollHeight,
+      offsetHeight: selfOffsetHeight,
       shadowRoot,
     } = this;
     if (!shadowRoot) {
       return;
     }
-    const itemHeight = selfScrollHeight / this.itemCount;
+    const itemHeight = selfOffsetHeight / this.itemCount;
     if (Number.isFinite(itemHeight) === false) {
       return;
     }
+    // const safeArea = itemHeight * 5;
 
     /**相对viewPort的位置 */
     const relatedOffsetTop = selfOffsetTop - viewPortOffsetTop;
     // const scrollTop = viewPortScrollTop + relatedOffsetTop;
 
     /// 这里包含border
-    const viewTop = viewPortScrollTop - relatedOffsetTop;
+    const viewTop = viewPortScrollTop - relatedOffsetTop; /* - safeArea */
     /// 这里包含border
-    const viewBottom = viewTop + viewPortHeight;
-
-    const MAX = this.itemCount - 1;
-    const MIN = 0;
-    const clamp = (min: number, v: number, max: number) =>
-      Math.min(Math.max(v, min), max);
+    const viewBottom = viewTop + viewPortHeight; /* + safeArea */
 
     const viewStartIndex = Math.floor(viewTop / itemHeight);
     const viewEndIndex = Math.min(
@@ -242,7 +250,7 @@ export class FixedSizeListBuilderElement<
     const rms = new Set<T>();
     for (const [i, item] of this._inViewItems) {
       if (i < viewStartIndex || i > viewEndIndex) {
-        this._emitDestroyItem({ index: i, node: item });
+        this._emitRanderItem({ index: i, node: item, type: "hidden" });
         this._inViewItems.delete(i);
         this._pool.push(item);
         rms.add(item);
@@ -263,13 +271,14 @@ export class FixedSizeListBuilderElement<
           this.appendChild(node);
         }
         /// 触发事件
-        this._emitBuildItem({ index, node });
+        this._emitRanderItem({ index, node, type: "visible" });
       }
       /// 设置偏移量
       node.style.setProperty(
-        "transform",
+        "--virtual-transform",
         `translateY(${index * itemHeight}px)`
       );
+      node.style.removeProperty("--virtual-display");
     }
 
     /// 移除剩余的没有被重复利用的元素；（使用挪动到视图之外来替代移除，避免过度抖动）
@@ -279,14 +288,14 @@ export class FixedSizeListBuilderElement<
       }
     } else {
       for (const node of rms) {
-        node.style.setProperty("transform", `translateY(${-itemHeight}px)`);
+        node.style.setProperty("--virtual-display", `none`);
       }
     }
   }
   /**销毁滚动视图 */
   private _destroyItems() {
     for (const [i, item] of this._inViewItems) {
-      this._emitDestroyItem({ index: i, node: item });
+      this._emitRanderItem({ index: i, node: item, type: "hidden" });
       this._inViewItems.delete(i);
       this._pool.push(item);
       this.removeChild(item);
@@ -325,30 +334,21 @@ export class ItemPool<T> {
   }
 }
 
-interface BuildItemDetail<T extends HTMLElement = HTMLElement> {
+interface RenderRangeChangeEntry<T extends HTMLElement = HTMLElement> {
   node: T;
   index: number;
+  type: "visible" | "hidden" | "create" | "destroy";
 }
-export class BuildItemEvent<
-  T extends HTMLElement = HTMLElement
-> extends CustomEvent<BuildItemDetail<T>> {}
-type ItemBuilder = <T extends HTMLElement = HTMLElement>(
-  event: BuildItemEvent<T>
-) => unknown;
+interface RenderRangeChangeDetail<T extends HTMLElement = HTMLElement> {
+  entries: RenderRangeChangeEntry<T>[];
+}
 
-interface BuildItemDetail<T extends HTMLElement = HTMLElement> {
-  node: T;
-  index: number;
-}
-interface DestroyItemDetail<T extends HTMLElement = HTMLElement> {
-  node: T;
-  index: number;
-}
-export class DestroyItemEvent<
+export class RenderRangeChangeEvent<
   T extends HTMLElement = HTMLElement
-> extends CustomEvent<DestroyItemDetail<T>> {}
-type ItemDestroyer = <T extends HTMLElement = HTMLElement>(
-  event: DestroyItemEvent<T>
+> extends CustomEvent<RenderRangeChangeDetail<T>> {}
+
+type RenderRangeChangeHanlder = <T extends HTMLElement = HTMLElement>(
+  event: RenderRangeChangeEvent<T>
 ) => unknown;
 
 customElements.define("fixed-size-list", FixedSizeListBuilderElement);
