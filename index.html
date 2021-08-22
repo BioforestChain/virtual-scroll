@@ -78,28 +78,6 @@
     </style>
   </head>
   <body>
-    <!-- <div id="scroll-viewport2">
-      <div class="list-wrapper">
-        <div class="before"></div>
-        <div class="block-card-item">Height:1</div>
-        <div class="block-card-item">Height:2</div>
-        <div class="block-card-item">Height:3</div>
-        <div class="block-card-item">Height:4</div>
-        <div class="block-card-item">Height:5</div>
-        <div class="block-card-item">Height:6</div>
-        <div class="block-card-item">Height:7</div>
-        <div class="block-card-item">Height:8</div>
-        <div class="block-card-item">Height:9</div>
-        <div class="block-card-item">Height:10</div>
-        <div class="block-card-item">Height:11</div>
-        <div class="block-card-item">Height:12</div>
-        <div class="block-card-item">Height:13</div>
-        <div class="block-card-item">Height:14</div>
-        <div class="block-card-item">Height:15</div>
-        <div class="block-card-item">Height:16</div>
-        <div class="after"></div>
-      </div>
-    </div> -->
     <scroll-viewport>
       <div
         style="
@@ -112,26 +90,7 @@
       <fixed-size-list
         class="list-1"
         item-size="200px"
-        item-count="100"
-        onrenderrangechange="rangeChange(event)"
-      >
-        <div class="block-card-item" slot="template">
-          <div class="block-content">
-            This is child content
-            <div class="height">Height: <span name="height"></span></div>
-            <div class="number-of-trs">
-              Number of Transactions: <span name="numberOfTransactions"></span>
-            </div>
-            <div class="height">offsetTop: <span name="offsetTop"></span></div>
-          </div>
-          <div class="chain-link"></div>
-        </div>
-      </fixed-size-list>
-      <main>some other content</main>
-      <fixed-size-list
-        class="list-2"
-        item-size="200px"
-        item-count="100"
+        item-count="500000"
         onrenderrangechange="rangeChange(event)"
       >
         <div class="block-card-item" slot="template">
@@ -157,20 +116,20 @@
     </scroll-viewport>
   </body>
   <script>
-    const total_height = 100;
+    const total_height = 500000n;
     function rangeChange(event) {
       const { entries } = event.detail;
       for (const { node, index, type } of entries) {
         const viewClass = event.target.className;
         if (type == "create" || type == "visible") {
-          console.log("%s %c%s", viewClass, "color:green", type, index);
+          // console.log("%s %c%s", viewClass, "color:green", type, index);
           const height = total_height - index;
           node.querySelector("[name=height]").innerHTML = height;
           node.style.setProperty("z-index", height);
-          node.classList.toggle("last", height === 1);
+          node.classList.toggle("last", height === 1n);
           // node.querySelector("[name=offsetTop]").innerHTML = node.offsetTop;
         } else {
-          console.log("%s %c%s", viewClass, "color:orange", type, index);
+          // console.log("%s %c%s", viewClass, "color:orange", type, index);
         }
       }
     }

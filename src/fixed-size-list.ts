@@ -3,20 +3,76 @@ import type { ScrollViewportElement } from "./scroll-viewport";
 
 const hostStyle = document.createElement("style");
 hostStyle.innerHTML = `
-:host {
-  display: block;
-  height: calc(var(--item-size) * var(--item-count));
-  position: relative;
-}
-slot[name="template"] {
-  display: none;
-}
-::slotted(*) {
-  position: absolute;
-  top: 0;
-  transform: var(--virtual-transform)!important;
-  display: var(--virtual-display)!important;
-}
+  :host {
+    display: block;
+    height: var(--viewport-height);
+    overflow: hidden;
+    position: relative;
+    scroll-snap-align: start;
+    scroll-snap-stop: always;
+  }
+
+  slot[name="template"] {
+    display: none;
+  }
+  :host > #scroll-ctrl {
+    height: 100%;
+    width: 100%;
+
+    position: absolute;
+    top: 0;
+    z-index: 2;
+
+    scroll-snap-type: y mandatory;
+    overflow: auto;
+  }
+  :host > #scroll-ctrl > .top,
+  :host > #scroll-ctrl > .bottom {
+    content: " ";
+    height: min(10000px, calc(var(--item-size) * var(--item-count) / 2));
+    background-image: linear-gradient(45deg, black, transparent);
+    background-size: 100px 100px;
+    background-repeat: repeat;
+    background-color: rebeccapurple;
+    display: block;
+    opacity: 0.1;
+  }
+  :host > #scroll-ctrl > .bottom {
+    background-color: orange;
+  }
+  :host > #scroll-ctrl > .center {
+    scroll-snap-align: center;
+    height: 0;
+  }
+  :host > #scroll-ctrl > #virtual-list-view {
+    height: var(--viewport-height);
+    width: 100%;
+
+    position: sticky;
+    top: 0;
+    z-index: 1;
+
+    overflow: hidden;
+  }
+
+  ::slotted(*) {
+    position: absolute;
+    top: 0;
+    transform: var(--virtual-transform) !important;
+    display: var(--virtual-display) !important;
+  }
+`;
+const fixedSizeListTemplate = document.createElement("template");
+fixedSizeListTemplate.innerHTML = `
+  <slot name="template"></slot>
+  <div id="scroll-ctrl">
+    <div id="virtual-list-view">
+      <slot name="item"></slot>
+    </div>
+    <div class="top"></div>
+    <div class="center"></div>
+    <div class="bottom"></div>
+  </div>
 `;
 
 const observedAttributes = [
@@ -30,6 +86,18 @@ const toInt = (val: unknown) => {
   const numVal = parseInt(val + "") || 0;
   return numVal < 0 ? 0 : numVal;
 };
+const toFloat = (val: unknown) => {
+  const numVal = parseFloat(val + "") || 0;
+  return numVal < 0 ? 0 : numVal;
+};
+const toBigInt = (val: unknown) => {
+  try {
+    const numVal = BigInt(parseInt(val + "")) || 0n;
+    return numVal < 0n ? 0n : numVal;
+  } catch {
+    return 0n;
+  }
+};
 const toPixel = (val: unknown) => {
   if (typeof val === "number") {
     val = (val > 0 ? val : 0) + "px";
@@ -37,11 +105,22 @@ const toPixel = (val: unknown) => {
   return val + "";
 };
 
+let frame_id = 0;
+const updateFrameId = () => {
+  frame_id++;
+  requestAnimationFrame(updateFrameId);
+};
+updateFrameId();
+
 export class FixedSizeListBuilderElement<
   T extends HTMLElement = HTMLElement
 > extends HTMLElement {
   static style = hostStyle;
   private _style = document.createElement("style");
+  private _fragment = fixedSizeListTemplate.content.cloneNode(
+    true
+  ) as DocumentFragment;
+  private _srollCtrl: HTMLDivElement;
   private _ob: MutationObserver;
   constructor() {
     super();
@@ -51,12 +130,18 @@ export class FixedSizeListBuilderElement<
     shadowRoot.appendChild(FixedSizeListBuilderElement.style.cloneNode(true));
     shadowRoot.appendChild(this._style);
 
-    /// 2. template for builder
-    const tplSlot = document.createElement("slot");
-    tplSlot.name = "template";
-    shadowRoot.appendChild(tplSlot);
+    /// 2. create content dom
+    shadowRoot.appendChild(this._fragment);
+    /// 3. scroll controll dom
+    this._srollCtrl = shadowRoot.querySelector(
+      "#scroll-ctrl"
+    ) as HTMLDivElement;
 
-    /// 3. get slot=template as builder node
+    /// 4. get slot=template as builder node
+    const tplSlot = shadowRoot.querySelector(
+      'slot[name="template"]'
+    ) as HTMLSlotElement;
+
     const resetTemplateFactory = () => {
       const tplEles = tplSlot.assignedElements();
       const tplEle = tplEles[0];
@@ -80,22 +165,29 @@ export class FixedSizeListBuilderElement<
     this._ob = new MutationObserver(resetTemplateFactory);
     resetTemplateFactory();
 
-    /// 3. view slot
-    const itemSlot = document.createElement("slot");
-    itemSlot.name = "item";
-    shadowRoot.appendChild(itemSlot);
-
     /// 4. bind custom events
     this.addEventListener("renderrangechange", (event) => {
       this._onrenderrangechange?.(event as RenderRangeChangeEvent);
     });
+    this._srollCtrl.addEventListener("scroll", () => {
+      this._onScrollInViewPort();
+    });
+    this._srollCtrl.addEventListener("touchstart", () => {
+      this._intouch = true;
+    });
+    for (const en of ["touchcancel", "touchend"]) {
+      this._srollCtrl.addEventListener(en, () => {
+        console.log(en);
+        this._intouch = false;
+      });
+    }
 
     /// *. bind global
     Reflect.set(self, "l", this);
   }
   private _viewPort: ScrollViewportElement | null = null;
   private _onScrollInViewPort = () => {
-    this._renderItems();
+    this._renderItemsAni();
   };
   public get viewPort(): ScrollViewportElement | null {
     return this._viewPort;
@@ -137,22 +229,22 @@ export class FixedSizeListBuilderElement<
     this._onrenderrangechange = value || undefined;
   }
 
-  public itemCount = 0;
-  public itemSize = "0px";
+  public itemCount = 0n;
+  public itemSize = 0;
 
   private _tplEle?: Element;
   private _templateFactory?: () => T;
 
   attributeChangedCallback(
     name: typeof observedAttributes[0],
-    oldValue: unknown,
+    _oldValue: unknown,
     newValue: unknown
   ) {
     if (name === "item-count") {
-      this.itemCount = toInt(newValue);
+      this.itemCount = toBigInt(newValue);
       this._setStyle();
     } else if (name === "item-size") {
-      this.itemSize = toPixel(newValue);
+      this.itemSize = toFloat(newValue);
       this._setStyle();
     } else if (name === "onrenderrangechange") {
       if (newValue) {
@@ -167,13 +259,16 @@ export class FixedSizeListBuilderElement<
   }
   private _setStyle() {
     this._style.innerHTML = `:host {
-        --item-size: ${this.itemSize};
+        --item-size: ${this.itemSize}px;
         --item-count: ${this.itemCount};
     }`;
+    this.MAX_VIRTUAL_SCROLL_HEIGHT_6E =
+      BigInt(Math.floor(this.itemSize * 1e6)) * this.itemCount;
+
     this._renderItems();
   }
   private _rangechange_event_collection?: Map<
-    number,
+    bigint,
     RenderRangeChangeEntry<T>
   >;
   private _emitRanderItem(item: RenderRangeChangeEntry<T>) {
@@ -184,8 +279,8 @@ export class FixedSizeListBuilderElement<
         if (this._rangechange_event_collection === collection) {
           this._rangechange_event_collection = undefined;
         }
-        const entries = [...collection.values()].sort(
-          (a, b) => a.index - b.index
+        const entries = [...collection.values()].sort((a, b) =>
+          a.index - b.index > 0n ? 1 : -1
         );
         const info: RenderRangeChangeDetail<T> = {
           entries,
@@ -206,45 +301,115 @@ export class FixedSizeListBuilderElement<
 
     this.dispatchEvent(event);
   }
+
+  private _ani_ti?: number;
+  _renderItemsAni = (force?: boolean) => {
+    if (this._ani_ti === undefined || force) {
+      const scrollTop = this._srollCtrl.scrollTop;
+      this._ani_ti = requestAnimationFrame(() => {
+        if (scrollTop !== this._srollCtrl.scrollTop) {
+          this._renderItemsAni(true);
+        } else {
+          this._ani_ti = undefined;
+        }
+      });
+      this._renderItems();
+    }
+  };
+
+  // scrollTopLowBit = 0
+  // scrollTopHighBit = 0
+  // get scrollTopBn (){
+  //   return
+  // }
+  // scrollTopBn =
+  /**
+   * 这里是放大了1e6的精度
+   */
+  virtualScrollTop6e = 0n;
+  MAX_VIRTUAL_SCROLL_HEIGHT_6E = 0n;
+
+  // private _centerScrollTop = -1;
+  private _preScrollTop = -1;
+  private _preScrollDiff = 0;
+  private _safeAreaTop = 100;
+  private _safeAreaBottom = 100;
+
+  private _intouch = false;
   /**渲染滚动视图 */
   private _renderItems() {
     if (!this.viewPort || !this._templateFactory) {
       return;
     }
     // const viewPortBound = this.viewPort.getBoundingClientRect();
-    const {
-      scrollTop: viewPortScrollTop,
-      offsetTop: viewPortOffsetTop,
-      clientHeight: viewPortHeight,
-    } = this.viewPort;
-    const {
-      offsetTop: selfOffsetTop,
-      offsetHeight: selfOffsetHeight,
-      shadowRoot,
-    } = this;
-    if (!shadowRoot) {
-      return;
+    const { clientHeight, scrollHeight } = this._srollCtrl; //.viewPort;
+    const scrollTop = this._srollCtrl.scrollTop - clientHeight;
+    const _centerScrollTop = (scrollHeight - clientHeight - clientHeight) / 2;
+    const preScrollTop =
+      this._preScrollTop === -1 ? _centerScrollTop : this._preScrollTop;
+    let scrollDiff = 0;
+    /// 正在向下滚动
+    if (scrollTop > _centerScrollTop) {
+      /// 正在向下滚动
+      if (scrollTop > preScrollTop || this._intouch) {
+        scrollDiff = this._preScrollDiff = scrollTop - preScrollTop;
+        this._preScrollDiff = scrollDiff;
+      }
+      /// 正在弹回滚动
+      else {
+        scrollDiff = this._preScrollDiff;
+      }
     }
-    const itemHeight = selfOffsetHeight / this.itemCount;
-    if (Number.isFinite(itemHeight) === false) {
-      return;
+    /// 正在向上滚动
+    else if (scrollTop < _centerScrollTop) {
+      /// 正在向上滚动
+      if (scrollTop < preScrollTop || this._intouch) {
+        scrollDiff = this._preScrollDiff = scrollTop - preScrollTop;
+        this._preScrollDiff = scrollDiff;
+      }
+      /// 正在弹回滚动
+      else {
+        scrollDiff = this._preScrollDiff;
+      }
     }
-    // const safeArea = itemHeight * 5;
-
-    /**相对viewPort的位置 */
-    const relatedOffsetTop = selfOffsetTop - viewPortOffsetTop;
-    // const scrollTop = viewPortScrollTop + relatedOffsetTop;
-
-    /// 这里包含border
-    const viewTop = viewPortScrollTop - relatedOffsetTop; /* - safeArea */
-    /// 这里包含border
-    const viewBottom = viewTop + viewPortHeight; /* + safeArea */
-
-    const viewStartIndex = Math.floor(viewTop / itemHeight);
-    const viewEndIndex = Math.min(
-      Math.floor(viewBottom / itemHeight),
-      this.itemCount - 1
+    console.log(
+      `scrollTop:${scrollTop}; center:${_centerScrollTop}; direction:${
+        scrollTop > _centerScrollTop ? "down" : "up"
+      }; diff:${scrollDiff}`
     );
+    this._preScrollTop = scrollTop;
+    // if (scrollDiff === 0) {
+    //   return;
+    // }
+
+    let virtualScrollTop6e =
+      this.virtualScrollTop6e + BigInt(Math.floor(scrollDiff * 1e6)); /* -
+      BigInt(Math.floor(this._safeAreaTop * 1e6)) */
+
+    const MAX_VIRTUAL_SCROLL_BOTTOM_6E = this.MAX_VIRTUAL_SCROLL_HEIGHT_6E;
+    const MAX_VIRTUAL_SCROLL_TOP_6E =
+      MAX_VIRTUAL_SCROLL_BOTTOM_6E - BigInt(Math.floor(clientHeight * 1e6));
+
+    if (virtualScrollTop6e < 0n) {
+      virtualScrollTop6e = 0n;
+    } else if (virtualScrollTop6e > MAX_VIRTUAL_SCROLL_TOP_6E) {
+      virtualScrollTop6e = MAX_VIRTUAL_SCROLL_TOP_6E;
+    }
+    this.virtualScrollTop6e = virtualScrollTop6e;
+    let virtualScrollBottom6e =
+      virtualScrollTop6e + BigInt(Math.floor(clientHeight * 1e6)); /* +
+      BigInt(Math.floor(this._safeAreaBottom * 1e6)) */
+    if (virtualScrollBottom6e > MAX_VIRTUAL_SCROLL_BOTTOM_6E) {
+      virtualScrollBottom6e = MAX_VIRTUAL_SCROLL_BOTTOM_6E;
+    }
+
+    const itemSize6e = BigInt(Math.floor(this.itemSize * 1e6));
+
+    const viewStartIndex = virtualScrollTop6e / itemSize6e;
+    const viewEndIndex = virtualScrollBottom6e / itemSize6e;
+    /**坐标偏移 */
+    const koordinatenverschiebung =
+      Number(virtualScrollTop6e - viewStartIndex * itemSize6e) / 1e6;
 
     /// 先标记回收
     const rms = new Set<T>();
@@ -258,12 +423,9 @@ export class FixedSizeListBuilderElement<
     }
 
     /// 再进行重建
-    for (
-      let index = Math.max(viewStartIndex, 0);
-      index <= viewEndIndex;
-      index++
-    ) {
+    for (let index = viewStartIndex; index <= viewEndIndex; index++) {
       let node = this._inViewItems.get(index);
+
       if (!node) {
         node = this._pool.pop();
         this._inViewItems.set(index, node);
@@ -272,12 +434,19 @@ export class FixedSizeListBuilderElement<
         }
         /// 触发事件
         this._emitRanderItem({ index, node, type: "visible" });
+        // (node as any).disabled_ani = true;
       }
+
       /// 设置偏移量
       node.style.setProperty(
         "--virtual-transform",
-        `translateY(${index * itemHeight}px)`
+        `translateY(${
+          // scrollTop +
+          Number(index - viewStartIndex) * this.itemSize -
+          koordinatenverschiebung
+        }px)`
       );
+      // node.style.setProperty("transition-duration", ani ? ".1s" : "0s");
       node.style.removeProperty("--virtual-display");
     }
 
@@ -301,7 +470,7 @@ export class FixedSizeListBuilderElement<
       this.removeChild(item);
     }
   }
-  private _inViewItems = new Map</* index: */ number, T>();
+  private _inViewItems = new Map</* index: */ bigint, T>();
   private _pool = new ItemPool(() => {
     if (!this._templateFactory) {
       throw new Error("no found template slot");
@@ -314,6 +483,7 @@ export class FixedSizeListBuilderElement<
     for (const ele of this._pool.clear()) {
       ele.remove();
     }
+    this._setStyle();
     this._renderItems();
   }
 }
@@ -336,7 +506,7 @@ export class ItemPool<T> {
 
 interface RenderRangeChangeEntry<T extends HTMLElement = HTMLElement> {
   node: T;
-  index: number;
+  index: bigint;
   type: "visible" | "hidden" | "create" | "destroy";
 }
 interface RenderRangeChangeDetail<T extends HTMLElement = HTMLElement> {

@@ -22,12 +22,6 @@ export class ScrollViewportElement extends LitElement {
       overflow: auto;
       scroll-behavior: smooth;
     }
-    /* :host(.bounce-effect) {
-      scroll-snap-type: y mandatory;
-    }
-    :host(.bounce-effect.touch-effect) {
-      scroll-snap-type: y proximity;
-    } */
     :host > #top::after {
       content: " ";
       display: block;
@@ -39,6 +33,19 @@ export class ScrollViewportElement extends LitElement {
       scroll-snap-align: end;
     }
   `;
+  private _resize_ob = (() => {
+    const ob = new ResizeObserver((entries) => {
+      this.style.setProperty("--viewport-height", this.clientHeight + "px");
+      this.style.setProperty("--viewport-width", this.clientWidth + "px");
+    });
+    ob.observe(this);
+    return ob;
+  })();
+
+  // constructor(){
+  //   this._resize_ob
+  // }
+
   // constructor() {
   //   super();
   //   this.addEventListener("scroll", (event) => {
@@ -80,6 +87,7 @@ export class ScrollViewportElement extends LitElement {
   //   );
   // }
 
+  scrollTopHigh = 0;
   render() {
     return html`
       <aside id="top" part="bounce-top">
