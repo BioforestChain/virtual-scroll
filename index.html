@@ -79,30 +79,25 @@
         border-radius: 5px;
       }
       .top-button {
-        position: absolute;
-        z-index: 2;
-        bottom: 0;
-        left: 0;
         width: 100%;
-        opacity: 0.8;
       }
     </style>
   </head>
   <body>
     <scroll-viewport>
-      <!-- <div
+      <div
         style="
           background: linear-gradient(45deg, #ffc107, transparent);
           height: 100px;
         "
         slot="bounce-top"
       ></div>
-      <header>some header content</header> -->
+      <!-- <header>some header content</header> -->
       <fixed-size-list
         id="l"
         class="list-1"
         item-size="200px"
-        item-count="500000"
+        item-count="50"
         onrenderrangechange="rangeChange(event)"
       >
         <div class="block-card-item" slot="template">
@@ -117,19 +112,19 @@
           <div class="chain-link"></div>
         </div>
       </fixed-size-list>
-      <button class="top-button" onclick="gotoTop()">go top</button>
-      <!-- <footer>some footer content</footer>
+      <!-- <button class="top-button" onclick="gotoTop()">go top</button>
+      <footer>some footer content</footer> -->
       <div
         style="
           background: linear-gradient(45deg, #4caf50, transparent);
           height: 100px;
         "
         slot="bounce-bottom"
-      ></div> -->
+      ></div>
     </scroll-viewport>
   </body>
   <script>
-    const total_height = 500000n;
+    const total_height = 50n;
     function rangeChange(event) {
       const { entries } = event.detail;
       for (const { node, index, type } of entries) {

@@ -21,45 +21,61 @@ hostStyle.innerHTML = `
 
     position: absolute;
     top: 0;
-    z-index: 2;
-
-    scroll-snap-type: y mandatory;
-    overflow: auto;
+    z-index: 1;
   }
-  :host > #scroll-ctrl > .top,
-  :host > #scroll-ctrl > .bottom {
+  :host > #scroll-ctrl .scroll-dir .top,
+  :host > #scroll-ctrl .scroll-dir .bottom {
     content: " ";
     display: block;
     visibility: hidden;
+    height: var(--ctrl-scroll-panel-height);
   }
-  :host > #scroll-ctrl > .top {
-    height:var(--ctrl-scroll-panel-height);
-    // height: calc(var(--ctrl-scroll-panel-height)*var(--scroll-progress));
-  }
-  :host > #scroll-ctrl > .bottom {
-    height:var(--ctrl-scroll-panel-height);
-    // height: calc(var(--ctrl-scroll-panel-height)*(1 - var(--scroll-progress)));
-  }
-  :host > #scroll-ctrl > .center {
+  :host > #scroll-ctrl .scroll-dir .center {
     scroll-snap-align: center;
     height: 0;
   }
-  :host > #scroll-ctrl > #virtual-list-view-wrapper {
+  :host > #scroll-ctrl .scroll-dir {
+    height: 100%;
+    scroll-snap-type: y mandatory;
+    overflow: overlay;
+  }
+  :host > #scroll-ctrl .scroll-dir.unscroll {
+    overflow: hidden;
+  }
+  :host > #scroll-ctrl #scroll-down {
+    position: sticky;
+    left: 0;
+    top: 0;
+  }
+  :host > #scroll-ctrl #virtual-list-view-wrapper {
     height: 0;
 
     position: sticky;
-    top: calc(var(--safe-render-top) * -1);
+    top: 0;
+    transform: translateY(calc(var(--safe-render-top) * -1));
     z-index: 1;
   }
-  :host > #scroll-ctrl > #virtual-list-view-wrapper > #virtual-list-view {
-    height: calc(var(--viewport-height) + var(--safe-render-top) + var(--safe-render-bottom));
+  :host > #scroll-ctrl #virtual-list-view {
+    height: calc(
+      var(--viewport-height) + var(--safe-render-top) +
+        var(--safe-render-bottom)
+    );
     width: 100%;
 
     overflow: hidden;
     contain: strict;
   }
-  :host > #scroll-ctrl::-webkit-scrollbar {
+  :host > #scroll-ctrl .scroll-dir::-webkit-scrollbar {
     // display: none;
+    // position: absolute;
+    // right: 0;
+    width: 4px;
+    background-color: transparent;
+    // height: 100px;
+  }
+  :host > #scroll-ctrl .scroll-dir::-webkit-scrollbar-thumb {
+    background-color: rgba(0,0,0,0.3);
+    border-radius: 2px;
   }
 
   ::slotted(*) {
@@ -73,14 +89,19 @@ const fixedSizeListTemplate = document.createElement("template");
 fixedSizeListTemplate.innerHTML = `
   <slot name="template"></slot>
   <div id="scroll-ctrl" part="scroll-ctrl">
-    <div id="virtual-list-view-wrapper">
-      <div id="virtual-list-view" part="virtual-list-view">
-        <slot name="item"></slot>
+    <div id="scroll-up" class="scroll-dir">
+      <div id="scroll-down" class="scroll-dir">
+        <div id="virtual-list-view-wrapper">
+          <div id="virtual-list-view" part="virtual-list-view">
+            <slot name="item"></slot>
+          </div>
+        </div>
+        <div class="center"></div>
+        <div class="bottom"></div>
       </div>
+      <div class="top"></div>
+      <div class="center"></div>
     </div>
-    <div class="top"></div>
-    <div class="center"></div>
-    <div class="bottom"></div>
   </div>
 `;
 
@@ -125,6 +146,8 @@ export class FixedSizeListBuilderElement<
     true
   ) as DocumentFragment;
   private _scrollCtrl: HTMLDivElement;
+  private _scrollCtrlUp: HTMLDivElement;
+  private _scrollCtrlDown: HTMLDivElement;
   private _virtualListView: HTMLDivElement;
   private _ob: MutationObserver;
   private _dev = false;
@@ -141,6 +164,12 @@ export class FixedSizeListBuilderElement<
     /// 3. scroll controll dom
     this._scrollCtrl = shadowRoot.querySelector(
       "#scroll-ctrl"
+    ) as HTMLDivElement;
+    this._scrollCtrlUp = this._scrollCtrl.querySelector(
+      "#scroll-up"
+    ) as HTMLDivElement;
+    this._scrollCtrlDown = this._scrollCtrl.querySelector(
+      "#scroll-down"
     ) as HTMLDivElement;
     this._virtualListView = shadowRoot.querySelector(
       "#virtual-list-view"
@@ -178,7 +207,8 @@ export class FixedSizeListBuilderElement<
     this.addEventListener("renderrangechange", (event) => {
       this._onrenderrangechange?.(event as RenderRangeChangeEvent);
     });
-    this._scrollCtrl.addEventListener("scroll", this.requestRenderAni);
+    this._scrollCtrlUp.addEventListener("scroll", this.requestRenderAni);
+    this._scrollCtrlDown.addEventListener("scroll", this.requestRenderAni);
     for (const en of ["touchstart", "mousedown"]) {
       this._scrollCtrl.addEventListener(en, () => {
         this._dev && console.log(en);
@@ -380,9 +410,6 @@ export class FixedSizeListBuilderElement<
   }
   private MAX_VIRTUAL_SCROLL_HEIGHT_6E = 0n;
 
-  private _preScrollTop = -1;
-  private _preScrollDiff = 0;
-
   private _safeRenderTop?: number;
   public get safeRenderTop() {
     return this._safeRenderTop ?? this.itemSize / 2;
@@ -398,56 +425,59 @@ export class FixedSizeListBuilderElement<
     this._safeRenderBottom = value;
   }
 
+  private _preScrollTop = -1;
+  private _preScrollDiff = 0;
+
+  private _preScrollUpTop = -1;
+  private _preScrollUpDiff = 0;
+  private _preScrollDownTop = -1;
+  private _preScrollDownDiff = 0;
+
   private _intouch = false;
   /**渲染滚动视图 */
   private _renderItems() {
     if (!this.viewPort || !this._templateFactory) {
       return;
     }
-    const scrollHeight = this._ctrlScrollPanelHeight * 2;
+
+    const scrollUpTop = this._scrollCtrlUp.scrollTop;
+    const scrollDownTop = this._scrollCtrlDown.scrollTop;
+    const scrollUpDiff = scrollUpTop - this._preScrollUpTop;
+    const scrollDownDiff = scrollDownTop - this._preScrollDownTop;
+    this._preScrollUpTop = scrollUpTop;
+    this._preScrollDownTop = scrollDownTop;
+
+    let scrollDiff = 0;
+    if (scrollDownDiff > 0 || (scrollDownDiff < 0 && this._intouch)) {
+      this._preScrollDownDiff = scrollDownDiff;
+      scrollDiff = scrollDownDiff;
+      /// 重置其它滚动的 scrollTop
+      this._scrollCtrlUp.scrollTop = 0;
+      this.viewPort.scrollTop = 0;
+    } else if (scrollUpDiff < 0 || (scrollUpDiff > 0 && this._intouch)) {
+      scrollDiff = scrollUpDiff;
+      this._preScrollUpDiff = scrollUpDiff;
+      /// 重置其它滚动的 scrollTop
+      this._scrollCtrlDown.scrollTop = 0;
+      this.viewPort.scrollTop = 0;
+    } else if (scrollDownDiff < 0) {
+      scrollDiff = this._preScrollDownDiff;
+    } else if (scrollUpDiff > 0) {
+      scrollDiff = this._preScrollUpDiff;
+    }
+    this._dev &&
+      console.log(
+        "scrollUpDiff",
+        scrollUpDiff,
+        "scrollDownDiff",
+        scrollDownDiff,
+        "scrollDiff",
+        scrollDiff
+      );
+
     const scrollCtrlHeight = this.viewPort.viewportHeight;
     const virtualListViewHeight =
       this.viewPort.viewportHeight + this.safeRenderBottom + this.safeRenderTop;
-
-    const scrollTop = fixedNum(this._scrollCtrl.scrollTop);
-    const _centerScrollTop = fixedNum((scrollHeight - scrollCtrlHeight) / 2);
-    const preScrollTop =
-      this._preScrollTop === -1 ? _centerScrollTop : this._preScrollTop;
-
-    let scrollDiff = 0;
-    /// 正在向下滚动
-    if (scrollTop > _centerScrollTop) {
-      /// 正在向下滚动
-      if (scrollTop > preScrollTop || this._intouch) {
-        scrollDiff = this._preScrollDiff = scrollTop - preScrollTop;
-      }
-      /// 正在弹回滚动
-      else {
-        scrollDiff = this._preScrollDiff;
-      }
-    }
-    /// 正在向上滚动
-    else if (scrollTop < _centerScrollTop) {
-      /// 正在向上滚动
-      if (scrollTop < preScrollTop || this._intouch) {
-        scrollDiff = this._preScrollDiff = scrollTop - preScrollTop;
-      }
-      /// 正在弹回滚动
-      else {
-        scrollDiff = this._preScrollDiff;
-      }
-    }
-
-    this._dev &&
-      console.log(
-        scrollTop,
-        scrollHeight,
-        scrollCtrlHeight,
-        virtualListViewHeight,
-        _centerScrollTop
-      );
-
-    this._preScrollTop = scrollTop;
 
     /// 计算virtualScrollTop/virtualScrollBottom
     let virtualScrollTop6e = this.virtualScrollTop6e + to6eBn(scrollDiff);
@@ -463,6 +493,11 @@ export class FixedSizeListBuilderElement<
     } else if (virtualScrollTop6e > MAX_VIRTUAL_SCROLL_TOP_6E) {
       virtualScrollTop6e = MAX_VIRTUAL_SCROLL_TOP_6E;
     }
+    this._scrollCtrlUp.classList.toggle("unscroll", virtualScrollTop6e === 0n);
+    this._scrollCtrlDown.classList.toggle(
+      "unscroll",
+      virtualScrollTop6e === MAX_VIRTUAL_SCROLL_TOP_6E
+    );
 
     this.scrollProcess =
       Number((virtualScrollTop6e * 100000000n) / MAX_VIRTUAL_SCROLL_TOP_6E) /

@@ -14,7 +14,7 @@ export class ScrollViewportElement extends LitElement {
       overflow: auto;
       box-sizing: border-box;
       scroll-snap-type: none;
-      scroll-snap-type: y proximity;
+      scroll-snap-type: y mandatory;
       overflow: auto;
       scroll-behavior: smooth;
     }
