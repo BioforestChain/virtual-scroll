@@ -1,5 +1,5 @@
 {
-  "name": "vite-lit-virtual-scroll",
+  "name": "@bfchain/virtual-scroll",
   "version": "0.0.0",
   "main": "dist/my-element.es.js",
   "exports": {

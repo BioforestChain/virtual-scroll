@@ -35,8 +35,23 @@ export class ScrollViewportElement extends LitElement {
   `;
   private _resize_ob = (() => {
     const ob = new ResizeObserver((entries) => {
-      this.style.setProperty("--viewport-height", this.clientHeight + "px");
-      this.style.setProperty("--viewport-width", this.clientWidth + "px");
+      for (const entry of entries) {
+        if (entry.target !== this) {
+          continue;
+        }
+        this.style.setProperty(
+          "--viewport-height",
+          entry.contentRect.height + "px"
+        );
+        this.style.setProperty(
+          "--viewport-width",
+          entry.contentRect.width + "px"
+        );
+        this.dispatchEvent(
+          new CustomEvent("viewportreisze", { detail: entry.contentRect })
+        );
+        //  entry.contentRect.width
+      }
     });
     ob.observe(this);
     return ob;

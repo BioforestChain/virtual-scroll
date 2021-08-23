@@ -45,11 +45,11 @@ hostStyle.innerHTML = `
     height: 0;
   }
   :host > #scroll-ctrl > #virtual-list-view {
-    height: var(--viewport-height);
+    height: calc(var(--viewport-height) + var(--safe-render-top) + var(--safe-render-bottom));
     width: 100%;
 
     position: sticky;
-    top: 0;
+    top: calc(var(--safe-render-top) * -1);
     z-index: 1;
 
     overflow: hidden;
@@ -65,8 +65,8 @@ hostStyle.innerHTML = `
 const fixedSizeListTemplate = document.createElement("template");
 fixedSizeListTemplate.innerHTML = `
   <slot name="template"></slot>
-  <div id="scroll-ctrl">
-    <div id="virtual-list-view">
+  <div id="scroll-ctrl" part="scroll-ctrl">
+    <div id="virtual-list-view" part="virtual-list-view">
       <slot name="item"></slot>
     </div>
     <div class="top"></div>
@@ -79,18 +79,20 @@ const observedAttributes = [
   "item-count" as const,
   "item-size" as const,
   "onrenderrangechange" as const,
+  "safe-render-top" as const,
+  "safe-render-bottom" as const,
   // "onbuilditem",
   // "ondestroyitem",
 ];
-const toInt = (val: unknown) => {
+const anyToInt = (val: unknown) => {
   const numVal = parseInt(val + "") || 0;
   return numVal < 0 ? 0 : numVal;
 };
-const toFloat = (val: unknown) => {
+const anyToFloat = (val: unknown) => {
   const numVal = parseFloat(val + "") || 0;
   return numVal < 0 ? 0 : numVal;
 };
-const toBigInt = (val: unknown) => {
+const anyToBigInt = (val: unknown) => {
   try {
     const numVal = BigInt(parseInt(val + "")) || 0n;
     return numVal < 0n ? 0n : numVal;
@@ -98,19 +100,12 @@ const toBigInt = (val: unknown) => {
     return 0n;
   }
 };
-const toPixel = (val: unknown) => {
-  if (typeof val === "number") {
-    val = (val > 0 ? val : 0) + "px";
-  }
-  return val + "";
+const fixedNum = (num: number) => {
+  return Math.round(num * 100) / 100;
 };
-
-let frame_id = 0;
-const updateFrameId = () => {
-  frame_id++;
-  requestAnimationFrame(updateFrameId);
+const to6eBn = (num: number) => {
+  return BigInt(Math.floor(num * 1e6));
 };
-updateFrameId();
 
 export class FixedSizeListBuilderElement<
   T extends HTMLElement = HTMLElement
@@ -120,8 +115,10 @@ export class FixedSizeListBuilderElement<
   private _fragment = fixedSizeListTemplate.content.cloneNode(
     true
   ) as DocumentFragment;
-  private _srollCtrl: HTMLDivElement;
+  private _scrollCtrl: HTMLDivElement;
+  private _virtualListView: HTMLDivElement;
   private _ob: MutationObserver;
+  private _dev = false;
   constructor() {
     super();
 
@@ -133,8 +130,11 @@ export class FixedSizeListBuilderElement<
     /// 2. create content dom
     shadowRoot.appendChild(this._fragment);
     /// 3. scroll controll dom
-    this._srollCtrl = shadowRoot.querySelector(
+    this._scrollCtrl = shadowRoot.querySelector(
       "#scroll-ctrl"
+    ) as HTMLDivElement;
+    this._virtualListView = shadowRoot.querySelector(
+      "#virtual-list-view"
     ) as HTMLDivElement;
 
     /// 4. get slot=template as builder node
@@ -169,15 +169,16 @@ export class FixedSizeListBuilderElement<
     this.addEventListener("renderrangechange", (event) => {
       this._onrenderrangechange?.(event as RenderRangeChangeEvent);
     });
-    this._srollCtrl.addEventListener("scroll", () => {
-      this._onScrollInViewPort();
-    });
-    this._srollCtrl.addEventListener("touchstart", () => {
-      this._intouch = true;
-    });
-    for (const en of ["touchcancel", "touchend"]) {
-      this._srollCtrl.addEventListener(en, () => {
-        console.log(en);
+    this._scrollCtrl.addEventListener("scroll", this.renderItemsAni);
+    for (const en of ["touchstart", "mousedown"]) {
+      this._scrollCtrl.addEventListener(en, () => {
+        this._dev && console.log(en);
+        this._intouch = true;
+      });
+    }
+    for (const en of ["touchcancel", "touchend", "mouseup"]) {
+      this._scrollCtrl.addEventListener(en, () => {
+        this._dev && console.log(en);
         this._intouch = false;
       });
     }
@@ -186,20 +187,17 @@ export class FixedSizeListBuilderElement<
     Reflect.set(self, "l", this);
   }
   private _viewPort: ScrollViewportElement | null = null;
-  private _onScrollInViewPort = () => {
-    this._renderItemsAni();
-  };
+
   public get viewPort(): ScrollViewportElement | null {
     return this._viewPort;
   }
   public set viewPort(value: ScrollViewportElement | null) {
     const oldViewPort = this._viewPort;
     if (oldViewPort) {
-      oldViewPort.removeEventListener("scroll", this._onScrollInViewPort);
+      oldViewPort.removeEventListener("viewportreisze", this.renderItemsAni);
     }
     if ((this._viewPort = value)) {
-      value.addEventListener("scroll", this._onScrollInViewPort);
-      value.addEventListener("resize", this._onScrollInViewPort);
+      value.addEventListener("viewportreisze", this.renderItemsAni);
       this._renderItems();
     } else {
       this._destroyItems();
@@ -241,10 +239,10 @@ export class FixedSizeListBuilderElement<
     newValue: unknown
   ) {
     if (name === "item-count") {
-      this.itemCount = toBigInt(newValue);
+      this.itemCount = anyToBigInt(newValue);
       this._setStyle();
     } else if (name === "item-size") {
-      this.itemSize = toFloat(newValue);
+      this.itemSize = anyToFloat(newValue);
       this._setStyle();
     } else if (name === "onrenderrangechange") {
       if (newValue) {
@@ -255,15 +253,22 @@ export class FixedSizeListBuilderElement<
       } else {
         this.onrenderrangechange = null;
       }
+    } else if (name === "safe-render-top") {
+      this.safeRenderTop = anyToInt(newValue);
+      this._setStyle();
+    } else if (name === "safe-render-bottom") {
+      this.safeRenderTop = anyToInt(newValue);
+      this._setStyle();
     }
   }
   private _setStyle() {
     this._style.innerHTML = `:host {
         --item-size: ${this.itemSize}px;
         --item-count: ${this.itemCount};
+        --safe-render-top: ${this.safeRenderTop}px;
+        --safe-render-bottom: ${this.safeRenderBottom}px;
     }`;
-    this.MAX_VIRTUAL_SCROLL_HEIGHT_6E =
-      BigInt(Math.floor(this.itemSize * 1e6)) * this.itemCount;
+    this.MAX_VIRTUAL_SCROLL_HEIGHT_6E = to6eBn(this.itemSize) * this.itemCount;
 
     this._renderItems();
   }
@@ -303,12 +308,16 @@ export class FixedSizeListBuilderElement<
   }
 
   private _ani_ti?: number;
-  _renderItemsAni = (force?: boolean) => {
+  private renderItemsAni = () => this._renderItemsAni();
+  private _renderItemsAni = (force?: number) => {
     if (this._ani_ti === undefined || force) {
-      const scrollTop = this._srollCtrl.scrollTop;
+      const scrollTop = this._scrollCtrl.scrollTop;
       this._ani_ti = requestAnimationFrame(() => {
-        if (scrollTop !== this._srollCtrl.scrollTop) {
-          this._renderItemsAni(true);
+        if (scrollTop !== this._scrollCtrl.scrollTop) {
+          this._renderItemsAni(60);
+        } else if (force !== undefined && --force <= 0) {
+          this._ani_ti = undefined;
+          // this._renderItemsAni(force);
         } else {
           this._ani_ti = undefined;
         }
@@ -329,11 +338,10 @@ export class FixedSizeListBuilderElement<
   virtualScrollTop6e = 0n;
   MAX_VIRTUAL_SCROLL_HEIGHT_6E = 0n;
 
-  // private _centerScrollTop = -1;
   private _preScrollTop = -1;
   private _preScrollDiff = 0;
-  private _safeAreaTop = 100;
-  private _safeAreaBottom = 100;
+  public safeRenderTop = 600;
+  public safeRenderBottom = 600;
 
   private _intouch = false;
   /**渲染滚动视图 */
@@ -342,18 +350,26 @@ export class FixedSizeListBuilderElement<
       return;
     }
     // const viewPortBound = this.viewPort.getBoundingClientRect();
-    const { clientHeight, scrollHeight } = this._srollCtrl; //.viewPort;
-    const scrollTop = this._srollCtrl.scrollTop - clientHeight;
-    const _centerScrollTop = (scrollHeight - clientHeight - clientHeight) / 2;
+    // const { scrollHeight } = this._scrollCtrl; //.viewPort;
+    const scrollHeight =
+      this._scrollCtrl.lastElementChild!.getBoundingClientRect().height * 2;
+    const scrollCtrlHeight = this._scrollCtrl.getBoundingClientRect().height;
+    const virtualListViewHeight =
+      this._virtualListView.getBoundingClientRect().height; //.viewPort;
+
+    const scrollTop = fixedNum(
+      this._scrollCtrl.scrollTop - virtualListViewHeight
+    );
+    const _centerScrollTop = fixedNum((scrollHeight - scrollCtrlHeight) / 2);
     const preScrollTop =
       this._preScrollTop === -1 ? _centerScrollTop : this._preScrollTop;
+    // const preScrollDiff = this._preScrollDiff;
     let scrollDiff = 0;
     /// 正在向下滚动
     if (scrollTop > _centerScrollTop) {
       /// 正在向下滚动
       if (scrollTop > preScrollTop || this._intouch) {
         scrollDiff = this._preScrollDiff = scrollTop - preScrollTop;
-        this._preScrollDiff = scrollDiff;
       }
       /// 正在弹回滚动
       else {
@@ -365,51 +381,69 @@ export class FixedSizeListBuilderElement<
       /// 正在向上滚动
       if (scrollTop < preScrollTop || this._intouch) {
         scrollDiff = this._preScrollDiff = scrollTop - preScrollTop;
-        this._preScrollDiff = scrollDiff;
       }
       /// 正在弹回滚动
       else {
         scrollDiff = this._preScrollDiff;
       }
     }
-    console.log(
-      `scrollTop:${scrollTop}; center:${_centerScrollTop}; direction:${
-        scrollTop > _centerScrollTop ? "down" : "up"
-      }; diff:${scrollDiff}`
-    );
+
+    this._dev &&
+      console.log(
+        scrollTop,
+        scrollHeight,
+        scrollCtrlHeight,
+        virtualListViewHeight,
+        _centerScrollTop
+      );
+
     this._preScrollTop = scrollTop;
-    // if (scrollDiff === 0) {
+    // if (preScrollDiff === scrollDiff && scrollDiff === 0) {
     //   return;
     // }
 
-    let virtualScrollTop6e =
-      this.virtualScrollTop6e + BigInt(Math.floor(scrollDiff * 1e6)); /* -
-      BigInt(Math.floor(this._safeAreaTop * 1e6)) */
+    /// 计算virtualScrollTop/virtualScrollBottom
+    let virtualScrollTop6e = this.virtualScrollTop6e + to6eBn(scrollDiff);
+
+    this._dev && console.log("virtualScrollTop6e", virtualScrollTop6e);
 
     const MAX_VIRTUAL_SCROLL_BOTTOM_6E = this.MAX_VIRTUAL_SCROLL_HEIGHT_6E;
     const MAX_VIRTUAL_SCROLL_TOP_6E =
-      MAX_VIRTUAL_SCROLL_BOTTOM_6E - BigInt(Math.floor(clientHeight * 1e6));
+      MAX_VIRTUAL_SCROLL_BOTTOM_6E - to6eBn(scrollCtrlHeight);
 
     if (virtualScrollTop6e < 0n) {
       virtualScrollTop6e = 0n;
     } else if (virtualScrollTop6e > MAX_VIRTUAL_SCROLL_TOP_6E) {
       virtualScrollTop6e = MAX_VIRTUAL_SCROLL_TOP_6E;
     }
+
     this.virtualScrollTop6e = virtualScrollTop6e;
+
     let virtualScrollBottom6e =
-      virtualScrollTop6e + BigInt(Math.floor(clientHeight * 1e6)); /* +
-      BigInt(Math.floor(this._safeAreaBottom * 1e6)) */
+      virtualScrollTop6e + to6eBn(virtualListViewHeight);
     if (virtualScrollBottom6e > MAX_VIRTUAL_SCROLL_BOTTOM_6E) {
       virtualScrollBottom6e = MAX_VIRTUAL_SCROLL_BOTTOM_6E;
     }
 
-    const itemSize6e = BigInt(Math.floor(this.itemSize * 1e6));
+    /// 开始进行safeArea的渲染空间计算
+    let safeRenderTop6e = to6eBn(this.safeRenderTop);
+    let safeRenderScrollTop = virtualScrollTop6e - safeRenderTop6e;
+    if (safeRenderScrollTop < 0n) {
+      // safeRenderScrollTop = 0n;
+      // safeRenderTop6e += safeRenderScrollTop;
+    }
 
-    const viewStartIndex = virtualScrollTop6e / itemSize6e;
+    const itemSize6e = to6eBn(this.itemSize);
+
+    const viewStartIndex =
+      (safeRenderScrollTop < 0n ? 0n : safeRenderScrollTop) / itemSize6e;
     const viewEndIndex = virtualScrollBottom6e / itemSize6e;
     /**坐标偏移 */
     const koordinatenverschiebung =
-      Number(virtualScrollTop6e - viewStartIndex * itemSize6e) / 1e6;
+      Number(
+        safeRenderScrollTop /* - safeRenderTop6e */ -
+          viewStartIndex * itemSize6e
+      ) / 1e6;
 
     /// 先标记回收
     const rms = new Set<T>();
