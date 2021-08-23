@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/src/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + Lit-Element App</title>
+    <title>Virtual Scroll - WebComponent</title>
     <script type="module" src="/src/scroll-viewport.ts"></script>
     <script type="module" src="/src/fixed-size-list.ts"></script>
     <style>
@@ -25,6 +25,7 @@
         width: 100%;
         height: 100%;
         background-color: #999;
+        position: relative;
       }
       .list-1 .block-card-item {
         --card-color: #2196f3;
@@ -77,6 +78,14 @@
           1px 1px 2px rgba(0, 0, 0, 0.2);
         border-radius: 5px;
       }
+      .top-button {
+        position: absolute;
+        z-index: 2;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        opacity: 0.8;
+      }
     </style>
   </head>
   <body>
@@ -90,6 +99,7 @@
       ></div>
       <header>some header content</header> -->
       <fixed-size-list
+        id="l"
         class="list-1"
         item-size="200px"
         item-count="500000"
@@ -107,6 +117,7 @@
           <div class="chain-link"></div>
         </div>
       </fixed-size-list>
+      <button class="top-button" onclick="gotoTop()">go top</button>
       <!-- <footer>some footer content</footer>
       <div
         style="
@@ -134,6 +145,9 @@
           // console.log("%s %c%s", viewClass, "color:orange", type, index);
         }
       }
+    }
+    function gotoTop() {
+      l.virtualScrollTop = 0;
     }
   </script>
   <script>

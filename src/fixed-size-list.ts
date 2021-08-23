@@ -59,7 +59,7 @@ hostStyle.innerHTML = `
     contain: strict;
   }
   :host > #scroll-ctrl::-webkit-scrollbar {
-    display: none;
+    // display: none;
   }
 
   ::slotted(*) {
@@ -193,7 +193,7 @@ export class FixedSizeListBuilderElement<
     }
 
     /// *. bind global
-    Reflect.set(self, "l", this);
+    // Reflect.set(self, "l", this);
   }
   private _viewPort: ScrollViewportElement | null = null;
 
@@ -366,9 +366,17 @@ export class FixedSizeListBuilderElement<
   /**
    * 这里是放大了1e6的精度
    */
-  virtualScrollTop6e = 0n;
+  private virtualScrollTop6e = 0n;
   get virtualScrollTop() {
     return this.virtualScrollTop6e / 1000000n;
+  }
+  set virtualScrollTop(v: number | bigint) {
+    if (typeof v === "number") {
+      this.virtualScrollTop6e = to6eBn(v);
+    } else {
+      this.virtualScrollTop6e = v * 1000000n;
+    }
+    this.refresh();
   }
   private MAX_VIRTUAL_SCROLL_HEIGHT_6E = 0n;
 
