@@ -33,10 +33,12 @@ hostStyle.innerHTML = `
     visibility: hidden;
   }
   :host > #scroll-ctrl > .top {
-    height:var(--ctrl-scroll-panel-height);// calc(var(--ctrl-scroll-panel-height)*var(--scroll-progress));
+    height:var(--ctrl-scroll-panel-height);
+    // height: calc(var(--ctrl-scroll-panel-height)*var(--scroll-progress));
   }
   :host > #scroll-ctrl > .bottom {
-    height:var(--ctrl-scroll-panel-height);// calc(var(--ctrl-scroll-panel-height)*(1 - var(--scroll-progress)));
+    height:var(--ctrl-scroll-panel-height);
+    // height: calc(var(--ctrl-scroll-panel-height)*(1 - var(--scroll-progress)));
   }
   :host > #scroll-ctrl > .center {
     scroll-snap-align: center;
@@ -288,15 +290,15 @@ export class FixedSizeListBuilderElement<
 
     this._requestRenderAni();
   }
-  // private _scrollProcess = 0;
-  // public get scrollProcess() {
-  //   return this._scrollProcess;
-  // }
-  // public set scrollProcess(value) {
-  //   this._scrollProcess = value;
-  //   this.style.setProperty("--scroll-progress", value.toFixed(6));
-  // }
-  scrollProcess = 0;
+  private _scrollProcess = 0;
+  public get scrollProcess() {
+    return this._scrollProcess;
+  }
+  public set scrollProcess(value) {
+    this._scrollProcess = value;
+    this.style.setProperty("--scroll-progress", value.toFixed(6));
+  }
+  // scrollProcess = 0;
   private _rangechange_event_collection?: Map<
     bigint,
     RenderRangeChangeEntry<T>
@@ -361,17 +363,14 @@ export class FixedSizeListBuilderElement<
     }
   };
 
-  // scrollTopLowBit = 0
-  // scrollTopHighBit = 0
-  // get scrollTopBn (){
-  //   return
-  // }
-  // scrollTopBn =
   /**
    * 这里是放大了1e6的精度
    */
   virtualScrollTop6e = 0n;
-  MAX_VIRTUAL_SCROLL_HEIGHT_6E = 0n;
+  get virtualScrollTop() {
+    return this.virtualScrollTop6e / 1000000n;
+  }
+  private MAX_VIRTUAL_SCROLL_HEIGHT_6E = 0n;
 
   private _preScrollTop = -1;
   private _preScrollDiff = 0;
@@ -397,21 +396,16 @@ export class FixedSizeListBuilderElement<
     if (!this.viewPort || !this._templateFactory) {
       return;
     }
-    // const viewPortBound = this.viewPort.getBoundingClientRect();
-    // const { scrollHeight } = this._scrollCtrl; //.viewPort;
     const scrollHeight = this._ctrlScrollPanelHeight * 2;
-    // this._scrollCtrl.lastElementChild!.getBoundingClientRect().height * 2;
-    const scrollCtrlHeight = this._scrollCtrl.getBoundingClientRect().height;
+    const scrollCtrlHeight = this.viewPort.viewportHeight;
     const virtualListViewHeight =
-      this._virtualListView.getBoundingClientRect().height; //.viewPort;
+      this.viewPort.viewportHeight + this.safeRenderBottom + this.safeRenderTop;
 
-    const scrollTop = fixedNum(
-      this._scrollCtrl.scrollTop // - virtualListViewHeight
-    );
+    const scrollTop = fixedNum(this._scrollCtrl.scrollTop);
     const _centerScrollTop = fixedNum((scrollHeight - scrollCtrlHeight) / 2);
     const preScrollTop =
       this._preScrollTop === -1 ? _centerScrollTop : this._preScrollTop;
-    // const preScrollDiff = this._preScrollDiff;
+
     let scrollDiff = 0;
     /// 正在向下滚动
     if (scrollTop > _centerScrollTop) {
@@ -446,9 +440,6 @@ export class FixedSizeListBuilderElement<
       );
 
     this._preScrollTop = scrollTop;
-    // if (preScrollDiff === scrollDiff && scrollDiff === 0) {
-    //   return;
-    // }
 
     /// 计算virtualScrollTop/virtualScrollBottom
     let virtualScrollTop6e = this.virtualScrollTop6e + to6eBn(scrollDiff);
@@ -471,31 +462,24 @@ export class FixedSizeListBuilderElement<
 
     this.virtualScrollTop6e = virtualScrollTop6e;
 
-    let virtualScrollBottom6e =
-      virtualScrollTop6e + to6eBn(virtualListViewHeight);
-    if (virtualScrollBottom6e > MAX_VIRTUAL_SCROLL_BOTTOM_6E) {
-      virtualScrollBottom6e = MAX_VIRTUAL_SCROLL_BOTTOM_6E;
-    }
-
     /// 开始进行safeArea的渲染空间计算
     let safeRenderTop6e = to6eBn(this.safeRenderTop);
-    let safeRenderScrollTop = virtualScrollTop6e - safeRenderTop6e;
-    if (safeRenderScrollTop < 0n) {
-      // safeRenderScrollTop = 0n;
-      // safeRenderTop6e += safeRenderScrollTop;
+    let safeRenderScrollTop6e = virtualScrollTop6e - safeRenderTop6e;
+
+    let safeRenderScrollBottom6e =
+      safeRenderScrollTop6e + to6eBn(virtualListViewHeight);
+    if (safeRenderScrollBottom6e > MAX_VIRTUAL_SCROLL_BOTTOM_6E) {
+      safeRenderScrollBottom6e = MAX_VIRTUAL_SCROLL_BOTTOM_6E;
     }
 
     const itemSize6e = to6eBn(this.itemSize);
 
     const viewStartIndex =
-      (safeRenderScrollTop < 0n ? 0n : safeRenderScrollTop) / itemSize6e;
-    const viewEndIndex = virtualScrollBottom6e / itemSize6e;
+      (safeRenderScrollTop6e < 0n ? 0n : safeRenderScrollTop6e) / itemSize6e;
+    const viewEndIndex = safeRenderScrollBottom6e / itemSize6e;
     /**坐标偏移 */
     const koordinatenverschiebung =
-      Number(
-        safeRenderScrollTop /* - safeRenderTop6e */ -
-          viewStartIndex * itemSize6e
-      ) / 1e6;
+      Number(safeRenderScrollTop6e - viewStartIndex * itemSize6e) / 1e6;
 
     /// 先标记回收
     const rms = new Set<T>();

@@ -22,6 +22,8 @@
         justify-content: stretch;
       }
       scroll-viewport {
+        width: 100%;
+        height: 100%;
         background-color: #999;
       }
       .list-1 .block-card-item {
@@ -79,14 +81,14 @@
   </head>
   <body>
     <scroll-viewport>
-      <div
+      <!-- <div
         style="
           background: linear-gradient(45deg, #ffc107, transparent);
           height: 100px;
         "
         slot="bounce-top"
       ></div>
-      <header>some header content</header>
+      <header>some header content</header> -->
       <fixed-size-list
         class="list-1"
         item-size="200px"
@@ -105,14 +107,14 @@
           <div class="chain-link"></div>
         </div>
       </fixed-size-list>
-      <footer>some footer content</footer>
+      <!-- <footer>some footer content</footer>
       <div
         style="
           background: linear-gradient(45deg, #4caf50, transparent);
           height: 100px;
         "
         slot="bounce-bottom"
-      ></div>
+      ></div> -->
     </scroll-viewport>
   </body>
   <script>

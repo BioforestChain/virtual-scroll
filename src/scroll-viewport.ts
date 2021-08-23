@@ -11,10 +11,6 @@ export class ScrollViewportElement extends LitElement {
   static styles = css`
     :host {
       display: block;
-      border: solid 1px gray;
-      padding: 16px;
-      max-width: 800px;
-      max-height: 100%;
       overflow: auto;
       box-sizing: border-box;
       scroll-snap-type: none;
@@ -33,6 +29,8 @@ export class ScrollViewportElement extends LitElement {
       scroll-snap-align: end;
     }
   `;
+  viewportHeight = 0;
+  viewportWidth = 0;
   private _resize_ob = (() => {
     const ob = new ResizeObserver((entries) => {
       for (const entry of entries) {
@@ -41,11 +39,11 @@ export class ScrollViewportElement extends LitElement {
         }
         this.style.setProperty(
           "--viewport-height",
-          entry.contentRect.height + "px"
+          (this.viewportHeight = entry.contentRect.height) + "px"
         );
         this.style.setProperty(
           "--viewport-width",
-          entry.contentRect.width + "px"
+          (this.viewportWidth = entry.contentRect.width) + "px"
         );
         this.dispatchEvent(
           new CustomEvent("viewportreisze", { detail: entry.contentRect })
