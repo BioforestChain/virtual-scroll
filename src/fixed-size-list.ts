@@ -29,30 +29,35 @@ hostStyle.innerHTML = `
   :host > #scroll-ctrl > .top,
   :host > #scroll-ctrl > .bottom {
     content: " ";
-    height: min(10000px, calc(var(--item-size) * var(--item-count) / 2));
-    background-image: linear-gradient(45deg, black, transparent);
-    background-size: 100px 100px;
-    background-repeat: repeat;
-    background-color: rebeccapurple;
     display: block;
-    opacity: 0.1;
+    visibility: hidden;
+  }
+  :host > #scroll-ctrl > .top {
+    height:var(--ctrl-scroll-panel-height);// calc(var(--ctrl-scroll-panel-height)*var(--scroll-progress));
   }
   :host > #scroll-ctrl > .bottom {
-    background-color: orange;
+    height:var(--ctrl-scroll-panel-height);// calc(var(--ctrl-scroll-panel-height)*(1 - var(--scroll-progress)));
   }
   :host > #scroll-ctrl > .center {
     scroll-snap-align: center;
     height: 0;
   }
-  :host > #scroll-ctrl > #virtual-list-view {
-    height: calc(var(--viewport-height) + var(--safe-render-top) + var(--safe-render-bottom));
-    width: 100%;
+  :host > #scroll-ctrl > #virtual-list-view-wrapper {
+    height: 0;
 
     position: sticky;
     top: calc(var(--safe-render-top) * -1);
     z-index: 1;
+  }
+  :host > #scroll-ctrl > #virtual-list-view-wrapper > #virtual-list-view {
+    height: calc(var(--viewport-height) + var(--safe-render-top) + var(--safe-render-bottom));
+    width: 100%;
 
     overflow: hidden;
+    contain: strict;
+  }
+  :host > #scroll-ctrl::-webkit-scrollbar {
+    display: none;
   }
 
   ::slotted(*) {
@@ -66,8 +71,10 @@ const fixedSizeListTemplate = document.createElement("template");
 fixedSizeListTemplate.innerHTML = `
   <slot name="template"></slot>
   <div id="scroll-ctrl" part="scroll-ctrl">
-    <div id="virtual-list-view" part="virtual-list-view">
-      <slot name="item"></slot>
+    <div id="virtual-list-view-wrapper">
+      <div id="virtual-list-view" part="virtual-list-view">
+        <slot name="item"></slot>
+      </div>
     </div>
     <div class="top"></div>
     <div class="center"></div>
@@ -169,7 +176,7 @@ export class FixedSizeListBuilderElement<
     this.addEventListener("renderrangechange", (event) => {
       this._onrenderrangechange?.(event as RenderRangeChangeEvent);
     });
-    this._scrollCtrl.addEventListener("scroll", this.renderItemsAni);
+    this._scrollCtrl.addEventListener("scroll", this.requestRenderAni);
     for (const en of ["touchstart", "mousedown"]) {
       this._scrollCtrl.addEventListener(en, () => {
         this._dev && console.log(en);
@@ -194,11 +201,11 @@ export class FixedSizeListBuilderElement<
   public set viewPort(value: ScrollViewportElement | null) {
     const oldViewPort = this._viewPort;
     if (oldViewPort) {
-      oldViewPort.removeEventListener("viewportreisze", this.renderItemsAni);
+      oldViewPort.removeEventListener("viewportreisze", this.requestRenderAni);
     }
     if ((this._viewPort = value)) {
-      value.addEventListener("viewportreisze", this.renderItemsAni);
-      this._renderItems();
+      value.addEventListener("viewportreisze", this.requestRenderAni);
+      this._requestRenderAni();
     } else {
       this._destroyItems();
     }
@@ -261,17 +268,35 @@ export class FixedSizeListBuilderElement<
       this._setStyle();
     }
   }
+  private _ctrlScrollPanelHeight = 0;
+  private _totalScrollHeight6e = 0n;
   private _setStyle() {
+    this._totalScrollHeight6e = this.itemCount * to6eBn(this.itemSize);
+    this._ctrlScrollPanelHeight = Math.min(
+      1e4,
+      Number(this._totalScrollHeight6e) / 1e6
+    );
+
     this._style.innerHTML = `:host {
         --item-size: ${this.itemSize}px;
         --item-count: ${this.itemCount};
+        --ctrl-scroll-panel-height: ${this._ctrlScrollPanelHeight}px;
         --safe-render-top: ${this.safeRenderTop}px;
         --safe-render-bottom: ${this.safeRenderBottom}px;
     }`;
     this.MAX_VIRTUAL_SCROLL_HEIGHT_6E = to6eBn(this.itemSize) * this.itemCount;
 
-    this._renderItems();
+    this._requestRenderAni();
   }
+  // private _scrollProcess = 0;
+  // public get scrollProcess() {
+  //   return this._scrollProcess;
+  // }
+  // public set scrollProcess(value) {
+  //   this._scrollProcess = value;
+  //   this.style.setProperty("--scroll-progress", value.toFixed(6));
+  // }
+  scrollProcess = 0;
   private _rangechange_event_collection?: Map<
     bigint,
     RenderRangeChangeEntry<T>
@@ -307,22 +332,32 @@ export class FixedSizeListBuilderElement<
     this.dispatchEvent(event);
   }
 
-  private _ani_ti?: number;
-  private renderItemsAni = () => this._renderItemsAni();
-  private _renderItemsAni = (force?: number) => {
-    if (this._ani_ti === undefined || force) {
-      const scrollTop = this._scrollCtrl.scrollTop;
-      this._ani_ti = requestAnimationFrame(() => {
-        if (scrollTop !== this._scrollCtrl.scrollTop) {
-          this._renderItemsAni(60);
-        } else if (force !== undefined && --force <= 0) {
-          this._ani_ti = undefined;
-          // this._renderItemsAni(force);
+  private _ani?: { reqFrameId: number; startTime: number };
+  readonly requestRenderAni = () => this._requestRenderAni();
+  private _requestRenderAni = (force?: boolean) => {
+    if (this._ani === undefined || force) {
+      const ani =
+        this._ani ||
+        (this._ani = {
+          reqFrameId: 0,
+          startTime: performance.now(),
+        });
+      ani.reqFrameId = requestAnimationFrame(() => {
+        if (
+          ani.startTime + 1e3 /* 每一次触发后，运动 1s 的时间 */ >
+          performance.now()
+        ) {
+          this._requestRenderAni(true);
         } else {
-          this._ani_ti = undefined;
+          this._ani = undefined;
+          // console.log("un ani", ani);
         }
       });
+
+      // console.log("do ani", ani);
       this._renderItems();
+    } else {
+      this._ani.startTime = performance.now();
     }
   };
 
@@ -340,8 +375,21 @@ export class FixedSizeListBuilderElement<
 
   private _preScrollTop = -1;
   private _preScrollDiff = 0;
-  public safeRenderTop = 600;
-  public safeRenderBottom = 600;
+
+  private _safeRenderTop?: number;
+  public get safeRenderTop() {
+    return this._safeRenderTop ?? this.itemSize / 2;
+  }
+  public set safeRenderTop(value) {
+    this._safeRenderTop = value;
+  }
+  private _safeRenderBottom?: number;
+  public get safeRenderBottom() {
+    return this._safeRenderBottom ?? this.itemSize / 2;
+  }
+  public set safeRenderBottom(value) {
+    this._safeRenderBottom = value;
+  }
 
   private _intouch = false;
   /**渲染滚动视图 */
@@ -351,14 +399,14 @@ export class FixedSizeListBuilderElement<
     }
     // const viewPortBound = this.viewPort.getBoundingClientRect();
     // const { scrollHeight } = this._scrollCtrl; //.viewPort;
-    const scrollHeight =
-      this._scrollCtrl.lastElementChild!.getBoundingClientRect().height * 2;
+    const scrollHeight = this._ctrlScrollPanelHeight * 2;
+    // this._scrollCtrl.lastElementChild!.getBoundingClientRect().height * 2;
     const scrollCtrlHeight = this._scrollCtrl.getBoundingClientRect().height;
     const virtualListViewHeight =
       this._virtualListView.getBoundingClientRect().height; //.viewPort;
 
     const scrollTop = fixedNum(
-      this._scrollCtrl.scrollTop - virtualListViewHeight
+      this._scrollCtrl.scrollTop // - virtualListViewHeight
     );
     const _centerScrollTop = fixedNum((scrollHeight - scrollCtrlHeight) / 2);
     const preScrollTop =
@@ -416,6 +464,10 @@ export class FixedSizeListBuilderElement<
     } else if (virtualScrollTop6e > MAX_VIRTUAL_SCROLL_TOP_6E) {
       virtualScrollTop6e = MAX_VIRTUAL_SCROLL_TOP_6E;
     }
+
+    this.scrollProcess =
+      Number((virtualScrollTop6e * 100000000n) / MAX_VIRTUAL_SCROLL_TOP_6E) /
+      100000000;
 
     this.virtualScrollTop6e = virtualScrollTop6e;
 
@@ -480,7 +532,6 @@ export class FixedSizeListBuilderElement<
           koordinatenverschiebung
         }px)`
       );
-      // node.style.setProperty("transition-duration", ani ? ".1s" : "0s");
       node.style.removeProperty("--virtual-display");
     }
 
@@ -518,7 +569,7 @@ export class FixedSizeListBuilderElement<
       ele.remove();
     }
     this._setStyle();
-    this._renderItems();
+    this._requestRenderAni();
   }
 }
 
