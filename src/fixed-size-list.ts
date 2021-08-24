@@ -448,16 +448,18 @@ export class FixedSizeListBuilderElement<
 
     let scrollDiff = 0;
     if (scrollDownDiff > 0 || (scrollDownDiff < 0 && this._intouch)) {
-      this._preScrollDownDiff = scrollDownDiff;
       scrollDiff = scrollDownDiff;
-      /// 重置其它滚动的 scrollTop
+      this._preScrollDownDiff = scrollDownDiff;
+      /// 重置其它滚动的 scrollTop；因为scroll-snap，所以使用0即可强制触发位置重置
       this._scrollCtrlUp.scrollTop = 0;
+      this._preScrollUpTop = this._scrollCtrlUp.scrollTop;
       this.viewPort.scrollTop = 0;
     } else if (scrollUpDiff < 0 || (scrollUpDiff > 0 && this._intouch)) {
       scrollDiff = scrollUpDiff;
       this._preScrollUpDiff = scrollUpDiff;
-      /// 重置其它滚动的 scrollTop
+      /// 重置其它滚动的 scrollTop；因为scroll-snap，所以使用0即可强制触发位置重置
       this._scrollCtrlDown.scrollTop = 0;
+      this._preScrollDownTop = this._scrollCtrlDown.scrollTop;
       this.viewPort.scrollTop = 0;
     } else if (scrollDownDiff < 0) {
       scrollDiff = this._preScrollDownDiff;
@@ -466,6 +468,7 @@ export class FixedSizeListBuilderElement<
       scrollDiff = this._preScrollUpDiff;
       this._preScrollUpDiff *= 0.9;
     } else {
+      /// 平滑滚动
       scrollDiff = this._preScrollDiff * 0.9;
     }
 
