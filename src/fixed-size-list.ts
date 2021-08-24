@@ -521,7 +521,10 @@ export class FixedSizeListBuilderElement<
     } else if (virtualScrollTop6e > MAX_VIRTUAL_SCROLL_TOP_6E) {
       virtualScrollTop6e = MAX_VIRTUAL_SCROLL_TOP_6E;
     }
-    this._scrollCtrlUp.classList.toggle("unscroll", virtualScrollTop6e === 0n);
+    this._scrollCtrlUp.classList.toggle(
+      "unscroll",
+      virtualScrollTop6e === MIN_VIRTUAL_SCROLL_TOP_6E
+    );
     this._scrollCtrlDown.classList.toggle(
       "unscroll",
       virtualScrollTop6e === MAX_VIRTUAL_SCROLL_TOP_6E
