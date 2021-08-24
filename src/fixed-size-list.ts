@@ -109,18 +109,28 @@ const observedAttributes = [
   "onrenderrangechange" as const,
   "cache-render-top" as const,
   "cache-render-bottom" as const,
+  "safe-area-inset-top" as const,
+  "safe-area-inset-bottom" as const,
   // "onbuilditem",
   // "ondestroyitem",
 ];
 const anyToInt = (val: unknown) => {
   const numVal = parseInt(val + "") || 0;
-  return numVal < 0 ? 0 : numVal;
+  return isFinite(numVal) ? numVal : 0;
+};
+const anyToNaturalInt = (val: unknown) => {
+  const float = anyToInt(val);
+  return float < 0 ? 0 : float;
 };
 const anyToFloat = (val: unknown) => {
   const numVal = parseFloat(val + "") || 0;
-  return numVal < 0 ? 0 : numVal;
+  return isFinite(numVal) ? numVal : 0;
 };
-const anyToBigInt = (val: unknown) => {
+const anyToNaturalFloat = (val: unknown) => {
+  const float = anyToFloat(val);
+  return float < 0 ? 0 : float;
+};
+const anyToNaturalBigInt = (val: unknown) => {
   try {
     const numVal = BigInt(parseInt(val + "")) || 0n;
     return numVal < 0n ? 0n : numVal;
@@ -128,9 +138,7 @@ const anyToBigInt = (val: unknown) => {
     return 0n;
   }
 };
-const fixedNum = (num: number) => {
-  return Math.round(num * 100) / 100;
-};
+
 const to6eBn = (num: number) => {
   return BigInt(Math.floor(num * 1e6));
 };
@@ -276,10 +284,10 @@ export class FixedSizeListBuilderElement<
     newValue: unknown
   ) {
     if (name === "item-count") {
-      this.itemCount = anyToBigInt(newValue);
+      this.itemCount = anyToNaturalBigInt(newValue);
       this._setStyle();
     } else if (name === "item-size") {
-      this.itemSize = anyToFloat(newValue);
+      this.itemSize = anyToNaturalFloat(newValue);
       this._setStyle();
     } else if (name === "onrenderrangechange") {
       if (newValue) {
@@ -291,10 +299,16 @@ export class FixedSizeListBuilderElement<
         this.onrenderrangechange = null;
       }
     } else if (name === "cache-render-top") {
-      this.cacheRenderTop = anyToInt(newValue);
+      this.cacheRenderTop = anyToFloat(newValue);
       this._setStyle();
     } else if (name === "cache-render-bottom") {
-      this.cacheRenderTop = anyToInt(newValue);
+      this.cacheRenderBottom = anyToFloat(newValue);
+      this._setStyle();
+    } else if (name === "safe-area-inset-top") {
+      this.safeAreaInsetTop = anyToFloat(newValue);
+      this._setStyle();
+    } else if (name === "safe-area-inset-bottom") {
+      this.safeAreaInsetBottom = anyToFloat(newValue);
       this._setStyle();
     }
   }
@@ -314,8 +328,9 @@ export class FixedSizeListBuilderElement<
         --cache-render-top: ${this.cacheRenderTop}px;
         --cache-render-bottom: ${this.cacheRenderBottom}px;
     }`;
+    this.MIN_VIRTUAL_SCROLL_TOP_6E = -to6eBn(this.safeAreaInsetTop);
     this.MAX_VIRTUAL_SCROLL_HEIGHT_6E =
-      to6eBn(this.itemSize) * this.itemCount + to6eBn(this._paddingBottom);
+      to6eBn(this.itemSize) * this.itemCount + to6eBn(this.safeAreaInsetBottom);
 
     this._requestRenderAni();
   }
@@ -405,32 +420,30 @@ export class FixedSizeListBuilderElement<
     }
     this.refresh();
   }
+  private MIN_VIRTUAL_SCROLL_TOP_6E = 0n;
   private MAX_VIRTUAL_SCROLL_HEIGHT_6E = 0n;
 
-  private _safeRenderTop?: number;
+  private _cacheRenderTop?: number;
   public get cacheRenderTop() {
-    return this._safeRenderTop ?? this.itemSize / 2;
+    return this._cacheRenderTop ?? this.itemSize / 2;
   }
   public set cacheRenderTop(value) {
-    this._safeRenderTop = value;
+    this._cacheRenderTop = value;
   }
-  private _safeRenderBottom?: number;
+  private _cacheRenderBottom?: number;
   public get cacheRenderBottom() {
-    return this._safeRenderBottom ?? this.itemSize / 2;
+    return this._cacheRenderBottom ?? this.itemSize / 2;
   }
   public set cacheRenderBottom(value) {
-    this._safeRenderBottom = value;
+    this._cacheRenderBottom = value;
   }
 
-  private _preScrollTop = -1;
   private _preScrollDiff = 0;
 
-  private _preScrollUpTop = -1;
+  private _preScrollUpTop = 0;
   private _preScrollUpDiff = 0;
-  private _preScrollDownTop = -1;
+  private _preScrollDownTop = 0;
   private _preScrollDownDiff = 0;
-
-  private _paddingBottom = 100;
 
   private _intouch = false;
   /**渲染滚动视图 */
@@ -483,22 +496,28 @@ export class FixedSizeListBuilderElement<
         "scrollDiff",
         scrollDiff
       );
+    this._doScroll(scrollDiff);
+  }
 
-    const scrollCtrlHeight = this.viewPort.viewportHeight;
+  safeAreaInsetTop = 0;
+  safeAreaInsetBottom = 0;
+  private _doScroll(scrollDiff: number) {
+    const scrollCtrlHeight = this.viewPort!.viewportHeight;
     const virtualListViewHeight =
-      this.viewPort.viewportHeight + this.cacheRenderBottom + this.cacheRenderTop;
+      scrollCtrlHeight + this.cacheRenderBottom + this.cacheRenderTop;
 
     /// 计算virtualScrollTop/virtualScrollBottom
     let virtualScrollTop6e = this.virtualScrollTop6e + to6eBn(scrollDiff);
 
     this._dev && console.log("virtualScrollTop6e", virtualScrollTop6e);
 
+    const MIN_VIRTUAL_SCROLL_TOP_6E = this.MIN_VIRTUAL_SCROLL_TOP_6E;
     const MAX_VIRTUAL_SCROLL_BOTTOM_6E = this.MAX_VIRTUAL_SCROLL_HEIGHT_6E;
     const MAX_VIRTUAL_SCROLL_TOP_6E =
       MAX_VIRTUAL_SCROLL_BOTTOM_6E - to6eBn(scrollCtrlHeight);
 
-    if (virtualScrollTop6e < 0n) {
-      virtualScrollTop6e = 0n;
+    if (virtualScrollTop6e < MIN_VIRTUAL_SCROLL_TOP_6E) {
+      virtualScrollTop6e = MIN_VIRTUAL_SCROLL_TOP_6E;
     } else if (virtualScrollTop6e > MAX_VIRTUAL_SCROLL_TOP_6E) {
       virtualScrollTop6e = MAX_VIRTUAL_SCROLL_TOP_6E;
     }
@@ -526,8 +545,10 @@ export class FixedSizeListBuilderElement<
 
     const itemSize6e = to6eBn(this.itemSize);
 
-    const viewStartIndex =
-      (safeRenderScrollTop6e < 0n ? 0n : safeRenderScrollTop6e) / itemSize6e;
+    let viewStartIndex = safeRenderScrollTop6e / itemSize6e;
+    if (viewStartIndex < 0n) {
+      viewStartIndex = 0n;
+    }
     let viewEndIndex = safeRenderScrollBottom6e / itemSize6e;
     if (viewEndIndex >= this.itemCount) {
       viewEndIndex = this.itemCount - 1n;
