@@ -1,5 +1,12 @@
 // import { css } from "lit-element";
+import {
+  anyToNaturalBigInt,
+  anyToNaturalFloat,
+  anyToFloat,
+  to6eBn,
+} from "./helper";
 import type { ScrollViewportElement } from "./scroll-viewport";
+import type { CustomListItemElement } from "./custom-list-item";
 
 const hostStyle = document.createElement("style");
 hostStyle.innerHTML = `
@@ -78,8 +85,8 @@ hostStyle.innerHTML = `
   ::slotted(*) {
     position: absolute;
     top: 0;
-    transform: var(--virtual-transform) !important;
-    display: var(--virtual-display) !important;
+    transform: var(--virtual-transform);
+    display: var(--virtual-display);
     will-change: transform;
     --virtual-display: block;
     width: 100%;
@@ -117,35 +124,6 @@ const observedAttributes = [
   // "onbuilditem",
   // "ondestroyitem",
 ];
-const anyToInt = (val: unknown) => {
-  const numVal = parseInt(val + "") || 0;
-  return isFinite(numVal) ? numVal : 0;
-};
-const anyToNaturalInt = (val: unknown) => {
-  const float = anyToInt(val);
-  return float < 0 ? 0 : float;
-};
-const anyToFloat = (val: unknown) => {
-  const numVal = parseFloat(val + "") || 0;
-  return isFinite(numVal) ? numVal : 0;
-};
-const anyToNaturalFloat = (val: unknown) => {
-  const float = anyToFloat(val);
-  return float < 0 ? 0 : float;
-};
-const anyToNaturalBigInt = (val: unknown) => {
-  try {
-    const numVal = BigInt(parseInt(val + "")) || 0n;
-    return numVal < 0n ? 0n : numVal;
-  } catch {
-    return 0n;
-  }
-};
-
-const to6eBn = (num: number) => {
-  return BigInt(Math.floor(num * 1e6));
-};
-
 export class FixedSizeListBuilderElement<
   T extends HTMLElement = HTMLElement
 > extends HTMLElement {
@@ -506,6 +484,7 @@ export class FixedSizeListBuilderElement<
     const scrollCtrlHeight = this.viewPort!.viewportHeight;
     const virtualListViewHeight =
       scrollCtrlHeight + this.cacheRenderBottom + this.cacheRenderTop;
+    const virtualListViewHeight6e = to6eBn(virtualListViewHeight);
 
     /// 计算virtualScrollTop/virtualScrollBottom
     let virtualScrollTop6e = this.virtualScrollTop6e + to6eBn(scrollDiff);
@@ -537,13 +516,14 @@ export class FixedSizeListBuilderElement<
 
     this.virtualScrollTop6e = virtualScrollTop6e;
 
-    /// 开始进行safeArea的渲染空间计算
+    /// 开始进行safeArea+cacheRender的渲染空间计算
     const cacheRenderTop6e = to6eBn(this.cacheRenderTop);
-    let renderScrollTop6e =
-      virtualScrollTop6e - cacheRenderTop6e - this.SAFE_RENDER_TOP_6E;
+    /**实际高度比viewportHeight更高，所以这类需要扣去向上偏移的cacheRenderTop */
+    const cacheRenderScrollTop6e = virtualScrollTop6e - cacheRenderTop6e;
+    /**safeArea的存在使得我们需要额外进行渲染偏移，它就是默认的scrollTop偏移量 */
+    let renderScrollTop6e = cacheRenderScrollTop6e - this.SAFE_RENDER_TOP_6E;
 
-    let renderScrollBottom6e =
-      renderScrollTop6e + to6eBn(virtualListViewHeight);
+    let renderScrollBottom6e = renderScrollTop6e + virtualListViewHeight6e;
     if (renderScrollBottom6e > MAX_VIRTUAL_SCROLL_BOTTOM_6E) {
       renderScrollBottom6e = MAX_VIRTUAL_SCROLL_BOTTOM_6E;
     }
@@ -612,16 +592,35 @@ export class FixedSizeListBuilderElement<
     }
 
     /// 最后对自定义元素进行偏移
-    for (const customScrollEle of this.querySelectorAll("custom-list-item")) {
-      const top6e =
-        customScrollEle.virtualPositionTop * 1000000n + cacheRenderTop6e;
-      const bottom6e = top6e + to6eBn(customScrollEle.clientHeight);
-      if (bottom6e < renderScrollTop6e || top6e > renderScrollBottom6e) {
+    const cacheRenderScrollBottom6e =
+      cacheRenderScrollTop6e + virtualListViewHeight6e;
+    for (const customScrollEle of this.querySelectorAll<CustomListItemElement>(
+      ":scope > custom-list-item"
+    )) {
+      const top6e = customScrollEle.virtualPositionTop * 1000000n;
+      const itemSize6e = to6eBn(customScrollEle.itemSize);
+      const bottom6e = top6e + itemSize6e;
+
+      if (
+        bottom6e < cacheRenderScrollTop6e ||
+        top6e > cacheRenderScrollBottom6e
+      ) {
         customScrollEle.style.setProperty("--virtual-display", `none`);
+        console.log(
+          bottom6e,
+          cacheRenderScrollTop6e,
+          top6e,
+          cacheRenderScrollBottom6e,
+          "\n",
+          bottom6e < cacheRenderScrollTop6e,
+          top6e > cacheRenderScrollBottom6e
+        );
       } else {
         customScrollEle.style.setProperty(
           "--virtual-transform",
-          `translateY(${(top6e - virtualScrollTop6e) / 1000000n}px)`
+          `translateY(${
+            (top6e + cacheRenderTop6e - virtualScrollTop6e) / 1000000n
+          }px)`
         );
         customScrollEle.style.removeProperty("--virtual-display");
       }
