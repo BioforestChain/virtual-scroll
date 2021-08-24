@@ -64,14 +64,11 @@ hostStyle.innerHTML = `
 
     overflow: hidden;
     contain: strict;
+    transform: translate3d(0, 0, 0);
   }
   :host > #scroll-ctrl .scroll-dir::-webkit-scrollbar {
-    // display: none;
-    // position: absolute;
-    // right: 0;
     width: 4px;
     background-color: transparent;
-    // height: 100px;
   }
   :host > #scroll-ctrl .scroll-dir::-webkit-scrollbar-thumb {
     background-color: rgba(0,0,0,0.3);
@@ -83,6 +80,7 @@ hostStyle.innerHTML = `
     top: 0;
     transform: var(--virtual-transform) !important;
     display: var(--virtual-display) !important;
+    will-change: transform;
   }
 `;
 const fixedSizeListTemplate = document.createElement("template");
@@ -316,7 +314,8 @@ export class FixedSizeListBuilderElement<
         --safe-render-top: ${this.safeRenderTop}px;
         --safe-render-bottom: ${this.safeRenderBottom}px;
     }`;
-    this.MAX_VIRTUAL_SCROLL_HEIGHT_6E = to6eBn(this.itemSize) * this.itemCount;
+    this.MAX_VIRTUAL_SCROLL_HEIGHT_6E =
+      to6eBn(this.itemSize) * this.itemCount + to6eBn(this._paddingBottom);
 
     this._requestRenderAni();
   }
@@ -326,7 +325,7 @@ export class FixedSizeListBuilderElement<
   }
   public set scrollProcess(value) {
     this._scrollProcess = value;
-    this.style.setProperty("--scroll-progress", value.toFixed(6));
+    // this.style.setProperty("--scroll-progress", value.toFixed(6));
   }
   // scrollProcess = 0;
   private _rangechange_event_collection?: Map<
@@ -368,6 +367,8 @@ export class FixedSizeListBuilderElement<
   readonly requestRenderAni = () => this._requestRenderAni();
   private _requestRenderAni = (force?: boolean) => {
     if (this._ani === undefined || force) {
+      this._renderItems();
+
       const ani =
         this._ani ||
         (this._ani = {
@@ -382,12 +383,8 @@ export class FixedSizeListBuilderElement<
           this._requestRenderAni(true);
         } else {
           this._ani = undefined;
-          // console.log("un ani", ani);
         }
       });
-
-      // console.log("do ani", ani);
-      this._renderItems();
     } else {
       this._ani.startTime = performance.now();
     }
@@ -433,6 +430,8 @@ export class FixedSizeListBuilderElement<
   private _preScrollDownTop = -1;
   private _preScrollDownDiff = 0;
 
+  private _paddingBottom = 100;
+
   private _intouch = false;
   /**渲染滚动视图 */
   private _renderItems() {
@@ -462,9 +461,16 @@ export class FixedSizeListBuilderElement<
       this.viewPort.scrollTop = 0;
     } else if (scrollDownDiff < 0) {
       scrollDiff = this._preScrollDownDiff;
+      this._preScrollDownDiff *= 0.9;
     } else if (scrollUpDiff > 0) {
       scrollDiff = this._preScrollUpDiff;
+      this._preScrollUpDiff *= 0.9;
+    } else {
+      scrollDiff = this._preScrollDiff * 0.9;
     }
+
+    this._preScrollDiff = scrollDiff;
+
     this._dev &&
       console.log(
         "scrollUpDiff",
@@ -519,7 +525,10 @@ export class FixedSizeListBuilderElement<
 
     const viewStartIndex =
       (safeRenderScrollTop6e < 0n ? 0n : safeRenderScrollTop6e) / itemSize6e;
-    const viewEndIndex = safeRenderScrollBottom6e / itemSize6e;
+    let viewEndIndex = safeRenderScrollBottom6e / itemSize6e;
+    if (viewEndIndex >= this.itemCount) {
+      viewEndIndex = this.itemCount - 1n;
+    }
     /**坐标偏移 */
     const koordinatenverschiebung =
       Number(safeRenderScrollTop6e - viewStartIndex * itemSize6e) / 1e6;
