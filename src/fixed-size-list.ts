@@ -95,9 +95,9 @@ hostStyle.innerHTML = `
 const fixedSizeListTemplate = document.createElement("template");
 fixedSizeListTemplate.innerHTML = `
   <slot name="template"></slot>
-  <div id="scroll-ctrl" part="scroll-ctrl">
-    <div id="scroll-up" class="scroll-dir">
-      <div id="scroll-down" class="scroll-dir">
+  <div id="scroll-ctrl">
+    <div id="scroll-up" class="scroll-dir" part="scroll-up">
+      <div id="scroll-down" class="scroll-dir" part="scroll-down">
         <div id="virtual-list-view-wrapper">
           <div id="virtual-list-view" part="virtual-list-view">
             <slot></slot>
@@ -124,6 +124,24 @@ const observedAttributes = [
   // "onbuilditem",
   // "ondestroyitem",
 ];
+/**
+ * virtual scroll list with fixed size.
+ *
+ * @slot - for custom list item
+ * @slot template - for buildable item
+ * @csspart scroll-up - the scroll up controller
+ * @csspart scroll-up - the scroll up controller
+ * @csspart virtual-list-view- the scroll item containre
+ * @fires renderrangechange - when scroll, the item will need render changed
+ * @attr {bigint} item-count -
+ * @attr {number} item-size -
+ * @attr {number} safe-area-inset-top - like padding-top
+ * @attr {number} safe-area-inset-bottom - like padding-bottom
+ * @attr {number} cache-render-top - will make list-view higher, for render more item. if item content overflow, you may need change this to make it render correctly
+ * @attr {number} cache-render-bottom - will make list-view higher, for render more item. like {cache-render-top}
+ * @method refresh() - if you change the attr directly by set property. you may need call the method
+ * @prop {bigint} virtualScrollTop - change the scroll top. without animation
+ */
 export class FixedSizeListBuilderElement<
   T extends HTMLElement = HTMLElement
 > extends HTMLElement {
@@ -606,15 +624,6 @@ export class FixedSizeListBuilderElement<
         top6e > cacheRenderScrollBottom6e
       ) {
         customScrollEle.style.setProperty("--virtual-display", `none`);
-        console.log(
-          bottom6e,
-          cacheRenderScrollTop6e,
-          top6e,
-          cacheRenderScrollBottom6e,
-          "\n",
-          bottom6e < cacheRenderScrollTop6e,
-          top6e > cacheRenderScrollBottom6e
-        );
       } else {
         customScrollEle.style.setProperty(
           "--virtual-transform",

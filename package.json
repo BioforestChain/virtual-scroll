@@ -1,17 +1,18 @@
 {
   "name": "@bfchain/virtual-scroll",
   "version": "0.0.0",
-  "main": "dist/my-element.es.js",
+  "main": "dist/virtual-scroll.es.js",
   "exports": {
-    ".": "./dist/my-element.es.js"
+    ".": "./dist/virtual-scroll.es.js"
   },
-  "types": "types/my-element.d.ts",
+  "types": "types/virtual-scroll.d.ts",
   "files": [
     "dist",
     "types"
   ],
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 4600",
+    "publ": "npm publ --access public",
     "build": "tsc && vite build"
   },
   "dependencies": {

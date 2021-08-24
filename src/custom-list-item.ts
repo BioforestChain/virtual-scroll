@@ -2,6 +2,12 @@ import { LitElement, html, customElement, property, css } from "lit-element";
 import { anyToBigInt, anyToNaturalFloat } from "./helper";
 import type { FixedSizeListBuilderElement } from "./fixed-size-list";
 
+/**
+ * custom item in virtual scroll list
+ * @slot - for custom list item
+ * @attr {bigint} position-top - the posiction in virtual scroll list
+ * @attr {number} item-size - the item height
+ */
 @customElement("custom-list-item")
 export class CustomListItemElement extends LitElement {
   static styles = css`

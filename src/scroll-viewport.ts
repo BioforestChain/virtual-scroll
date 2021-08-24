@@ -1,10 +1,9 @@
-import { LitElement, html, customElement, property, css } from "lit-element";
+import { LitElement, html, customElement, css } from "lit-element";
 
 /**
- * An example element.
+ * viewport for virtual scroll.
  *
  * @slot - This element has a slot
- * @csspart button - The button
  */
 @customElement("scroll-viewport")
 export class ScrollViewportElement extends LitElement {
@@ -31,76 +30,34 @@ export class ScrollViewportElement extends LitElement {
   `;
   viewportHeight = 0;
   viewportWidth = 0;
-  private _resize_ob = (() => {
-    const ob = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        if (entry.target !== this) {
-          continue;
-        }
-        this.style.setProperty(
-          "--viewport-height",
-          (this.viewportHeight = entry.contentRect.height) + "px"
-        );
-        this.style.setProperty(
-          "--viewport-width",
-          (this.viewportWidth = entry.contentRect.width) + "px"
-        );
-        this.dispatchEvent(
-          new CustomEvent("viewportreisze", { detail: entry.contentRect })
-        );
-        //  entry.contentRect.width
+  private _resize_ob = new ResizeObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.target !== this) {
+        continue;
       }
-    });
-    ob.observe(this);
-    return ob;
-  })();
+      this.style.setProperty(
+        "--viewport-height",
+        (this.viewportHeight = entry.contentRect.height) + "px"
+      );
+      this.style.setProperty(
+        "--viewport-width",
+        (this.viewportWidth = entry.contentRect.width) + "px"
+      );
+      this.dispatchEvent(
+        new CustomEvent("viewportreisze", { detail: entry.contentRect })
+      );
+      //  entry.contentRect.width
+    }
+  });
+  connectedCallback() {
+    super.connectedCallback();
+    this._resize_ob.observe(this);
+  }
+  disconnectedCallback() {
+    super.disconnectedCallback();
+    this._resize_ob.disconnect();
+  }
 
-  // constructor(){
-  //   this._resize_ob
-  // }
-
-  // constructor() {
-  //   super();
-  //   this.addEventListener("scroll", (event) => {
-  //     const bounceTopEle = this.renderRoot.querySelector(
-  //       ":host>#top"
-  //     ) as HTMLElement;
-
-  //     if (
-  //       bounceTopEle &&
-  //       this.scrollTop === 0 /*  < bounceTopEle.offsetHeight */
-  //     ) {
-  //       console.log("in top bounce");
-  //       this.classList.add("bounce-effect");
-  //     } else {
-  //       const bounceBottomEle = this.renderRoot.querySelector(
-  //         ":host>#bottom"
-  //       ) as HTMLElement;
-  //       if (
-  //         bounceBottomEle &&
-  //         this.scrollHeight - this.clientHeight - this.scrollTop === 0 /*  <
-  //           bounceBottomEle.offsetHeight */
-  //       ) {
-  //         console.log("in bottom bounce");
-  //         this.classList.add("bounce-effect");
-  //       } else {
-  //         console.log("in content no bounce");
-  //         this.classList.remove("bounce-effect");
-  //       }
-  //     }
-  //   });
-  //   this.addEventListener("touchstart", () =>
-  //     this.classList.add("touch-effect")
-  //   );
-  //   this.addEventListener("touchcancel", () =>
-  //     this.classList.remove("touch-effect")
-  //   );
-  //   this.addEventListener("touchend", () =>
-  //     this.classList.remove("touch-effect")
-  //   );
-  // }
-
-  scrollTopHigh = 0;
   render() {
     return html`
       <aside id="top" part="bounce-top">
