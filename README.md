@@ -6,25 +6,130 @@
 ```html
 <custom-element-demo>
   <template>
-    <script type="module" src="/dist/virtual-scroll.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+        "lit-element": "//unpkg.com/lit-element@2.4.0/lit-element.js",
+        "lit-html/": "//unpkg.com/lit-html@1.4.1/"
+        }
+    }
+    </script>
+    <script type="module" src="./dist/virtual-scroll.es.js"></script>
+    <style>
+    html,
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        background-color: #ddd;
+    }
+    body {
+        box-sizing: border-box;
+        padding: 10px 20px;
+        align-items: center;
+        justify-content: stretch;
+    }
+    scroll-viewport {
+        width: 100%;
+        height: 100%;
+        background-color: #999;
+        position: relative;
+    }
+    .list-1 .block-card-item {
+        --card-color: #2196f3;
+        /* background: linear-gradient(45deg, #2196f3, transparent); */
+    }
+    .list-2 .block-card-item {
+        --card-color: #e91e63;
+        /* background: linear-gradient(45deg, #e91e63, transparent); */
+    }
+    .block-card-item {
+        height: 200px;
+        width: 100%;
+        box-sizing: border-box;
+        --card-color: #2196f3;
+        /* border: 1px solid rgba(0, 0, 0, 0.2); */
+        height: 240px;
+        padding: 20px 45px;
+    }
+    .block-card-item [name="height"] {
+        contain: strict;
+    }
+    .block-content {
+        height: 185px;
+        padding: 30px;
+        box-sizing: border-box;
+        background: linear-gradient(180deg, var(--card-color), #fff);
+        border-radius: 20px;
+        /* box-shadow: -4px -4px 8px rgba(255, 255, 255, 0.2),
+            4px 4px 8px rgba(0, 0, 0, 0.2); */
+        /* filter: drop-shadow(-4px -4px 8px rgba(255, 255, 255, 0.2)) drop-shadow(4px 4px 8px rgba(0, 0, 0, 0.2)); */
+    }
+    .block-card-item.last .chain-link {
+        display: none;
+    }
+    .block-card-item.hide {
+        display: none;
+    }
+    .chain-link {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        z-index: 2;
+        height: 60px;
+        width: 100%;
+        /* opacity: 0.9; */
+        display: flex;
+        flex-direction: row;
+        justify-content: space-around;
+    }
+    .chain-link::before,
+    .chain-link::after {
+        content: " ";
+        width: 10px;
+        background: #fff;
+        /* box-shadow: -1px -1px 2px rgba(255, 255, 255, 0.2),
+            1px 1px 2px rgba(0, 0, 0, 0.2); */
+        border-radius: 5px;
+    }
+    .top-button {
+        width: 100%;
+    }
+    .my-sliders {
+        width: 100%;
+        height: 100%;
+        padding: 10px;
+        box-sizing: border-box;
+    }
+    .my-sliders .slider-item {
+        background-color: #e91e63;
+        width: 100%;
+        height: 100%;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    </style>
     <script>
-      function rangeChange(event) {
+    function rangeChange(event) {
+        const { entries } = event.detail;
         for (const { node, index, type } of entries) {
-          if (type == "create" || type == "visible") {
+        if (type == "create" || type == "visible") {
             // console.log("%s %c%s", viewClass, "color:green", type, index);
             const height = (this.l.itemCount - index).toString();
             const heightEle = node.querySelector("[name=height]");
             if (heightEle.textContent != height) {
-              (heightEle.firstChild || heightEle).textContent = height;
-              node.style.setProperty("z-index", height);
+            (heightEle.firstChild || heightEle).textContent = height;
+            node.style.setProperty("z-index", height);
             }
             node.classList.toggle("last", height === "1" || index === 1n);
             console.log(index);
             node.classList.toggle("hide", index === 2n);
             // node.querySelector("[name=offsetTop]").innerHTML = node.offsetTop;
-          }
         }
-      }
+        }
+    }
     </script>
     <next-code-block></next-code-block>
   </template>
@@ -52,12 +157,12 @@
     </div>
     <custom-list-item item-size="400">
       <div class="my-sliders">
-        <div class="slider-item"></div>
+        <div class="slider-item">This is Banner!</div>
       </div>
     </custom-list-item>
     <custom-list-item position-top="812" item-size="200">
       <div class="my-sliders">
-        <div class="slider-item"></div>
+        <div class="slider-item">rethink, this is grid.</div>
       </div>
     </custom-list-item>
   </fixed-size-list>
