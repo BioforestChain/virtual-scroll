@@ -5,8 +5,7 @@
     <link rel="icon" type="image/svg+xml" href="/src/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Virtual Scroll - WebComponent</title>
-    <script type="module" src="/src/scroll-viewport.ts"></script>
-    <script type="module" src="/src/fixed-size-list.ts"></script>
+    <script type="module" src="/src/index.ts"></script>
     <style>
        html,
        body {
@@ -83,23 +82,43 @@
        .top-button {
          width: 100%;
        }
+       .my-sliders {
+         width: 100%;
+         height: 400px;
+         padding: 10px;
+         box-sizing: border-box;
+       }
+       .my-sliders .slider-item {
+        background-color: #e91e63;
+        width: 100%;
+        height: 100%;
+        border-radius: 10px;
+       }
     </style>
   </head>
   <body>
     <scroll-viewport>
       <div
         style="
-          background: linear-gradient(45deg, #ffc107, transparent);
+          color: #ffc107;
+          background-color: rgba(255, 255, 255, 0.2);
           height: 100px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         "
         slot="bounce-top"
-      ></div>
+      >
+        到顶了
+      </div>
       <!-- <header>some header content</header> -->
       <fixed-size-list
         id="l"
         class="list-1"
         item-size="200"
         item-count="10"
+        safe-area-inset-top="400"
+        safe-area-inset-bottom="100"
         onrenderrangechange="rangeChange(event)"
       >
         <div class="block-card-item" slot="template">
@@ -113,16 +132,27 @@
           </div>
           <div class="chain-link"></div>
         </div>
+        <custom-list-item>
+          <div class="my-sliders">
+            <div class="slider-item"></div>
+          </div>
+        </custom-list-item>
       </fixed-size-list>
       <!-- <button class="top-button" onclick="gotoTop()">go top</button>
       <footer>some footer content</footer> -->
       <div
         style="
-          background: linear-gradient(45deg, #4caf50, transparent);
+          color: #4caf50;
+          background-color: rgba(255, 255, 255, 0.2);
           height: 100px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
         "
         slot="bounce-bottom"
-      ></div>
+      >
+        到底了
+      </div>
     </scroll-viewport>
   </body>
   <script>
