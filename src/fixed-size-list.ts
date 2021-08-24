@@ -52,13 +52,13 @@ hostStyle.innerHTML = `
 
     position: sticky;
     top: 0;
-    transform: translateY(calc(var(--safe-render-top) * -1));
+    transform: translateY(calc(var(--cache-render-top) * -1));
     z-index: 1;
   }
   :host > #scroll-ctrl #virtual-list-view {
     height: calc(
-      var(--viewport-height) + var(--safe-render-top) +
-        var(--safe-render-bottom)
+      var(--viewport-height) + var(--cache-render-top) +
+        var(--cache-render-bottom)
     );
     width: 100%;
 
@@ -107,8 +107,8 @@ const observedAttributes = [
   "item-count" as const,
   "item-size" as const,
   "onrenderrangechange" as const,
-  "safe-render-top" as const,
-  "safe-render-bottom" as const,
+  "cache-render-top" as const,
+  "cache-render-bottom" as const,
   // "onbuilditem",
   // "ondestroyitem",
 ];
@@ -290,11 +290,11 @@ export class FixedSizeListBuilderElement<
       } else {
         this.onrenderrangechange = null;
       }
-    } else if (name === "safe-render-top") {
-      this.safeRenderTop = anyToInt(newValue);
+    } else if (name === "cache-render-top") {
+      this.cacheRenderTop = anyToInt(newValue);
       this._setStyle();
-    } else if (name === "safe-render-bottom") {
-      this.safeRenderTop = anyToInt(newValue);
+    } else if (name === "cache-render-bottom") {
+      this.cacheRenderTop = anyToInt(newValue);
       this._setStyle();
     }
   }
@@ -311,8 +311,8 @@ export class FixedSizeListBuilderElement<
         --item-size: ${this.itemSize}px;
         --item-count: ${this.itemCount};
         --ctrl-scroll-panel-height: ${this._ctrlScrollPanelHeight}px;
-        --safe-render-top: ${this.safeRenderTop}px;
-        --safe-render-bottom: ${this.safeRenderBottom}px;
+        --cache-render-top: ${this.cacheRenderTop}px;
+        --cache-render-bottom: ${this.cacheRenderBottom}px;
     }`;
     this.MAX_VIRTUAL_SCROLL_HEIGHT_6E =
       to6eBn(this.itemSize) * this.itemCount + to6eBn(this._paddingBottom);
@@ -408,17 +408,17 @@ export class FixedSizeListBuilderElement<
   private MAX_VIRTUAL_SCROLL_HEIGHT_6E = 0n;
 
   private _safeRenderTop?: number;
-  public get safeRenderTop() {
+  public get cacheRenderTop() {
     return this._safeRenderTop ?? this.itemSize / 2;
   }
-  public set safeRenderTop(value) {
+  public set cacheRenderTop(value) {
     this._safeRenderTop = value;
   }
   private _safeRenderBottom?: number;
-  public get safeRenderBottom() {
+  public get cacheRenderBottom() {
     return this._safeRenderBottom ?? this.itemSize / 2;
   }
-  public set safeRenderBottom(value) {
+  public set cacheRenderBottom(value) {
     this._safeRenderBottom = value;
   }
 
@@ -486,7 +486,7 @@ export class FixedSizeListBuilderElement<
 
     const scrollCtrlHeight = this.viewPort.viewportHeight;
     const virtualListViewHeight =
-      this.viewPort.viewportHeight + this.safeRenderBottom + this.safeRenderTop;
+      this.viewPort.viewportHeight + this.cacheRenderBottom + this.cacheRenderTop;
 
     /// 计算virtualScrollTop/virtualScrollBottom
     let virtualScrollTop6e = this.virtualScrollTop6e + to6eBn(scrollDiff);
@@ -515,7 +515,7 @@ export class FixedSizeListBuilderElement<
     this.virtualScrollTop6e = virtualScrollTop6e;
 
     /// 开始进行safeArea的渲染空间计算
-    let safeRenderTop6e = to6eBn(this.safeRenderTop);
+    let safeRenderTop6e = to6eBn(this.cacheRenderTop);
     let safeRenderScrollTop6e = virtualScrollTop6e - safeRenderTop6e;
 
     let safeRenderScrollBottom6e =
