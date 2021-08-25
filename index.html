@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Virtual Scroll - WebComponent</title>
     <script type="module" src="/src/index.ts"></script>
     <style>
@@ -100,7 +100,7 @@
         item-count="1000000"
         safe-area-inset-top="400"
         safe-area-inset-bottom="100"
-        onrenderrangechange="rangeChange(event)"
+        onrenderrangechange="rangeChange(event,this)"
       >
         <div class="block-card-item" slot="template">
           <div class="block-content">

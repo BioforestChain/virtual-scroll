@@ -11,6 +11,12 @@ import type { VirtualListCustomItemElement } from "./virtual-list-custom-item";
 import { css, LitElement, property, TemplateResult } from "lit-element";
 import { VirtualListDefaultItemElement } from "./virtual-list-default-item";
 
+export type ScrollAnimationInfo = {
+  reqFrameId: number;
+  startTime: number;
+  aniDuration: number;
+};
+
 /**
  * virtual scroll list with fixed size.
  *
@@ -140,7 +146,7 @@ export abstract class CommonFixedSizeListBuilder<
     }
     if ((this._viewPort = value)) {
       value.addEventListener("viewportreisze", this.requestRenderAni);
-      this._requestRenderAni();
+      this.requestRenderAni();
     } else {
       this._destroyItems();
     }
@@ -202,9 +208,21 @@ export abstract class CommonFixedSizeListBuilder<
     return this._itemCount;
   }
   public set itemCount(value: unknown) {
-    this._itemCount = anyToNaturalBigInt(value);
-    this._setStyle();
+    const newVal = anyToNaturalBigInt(value);
+    if (newVal !== this._itemCount) {
+      this._oldItemCount = this._itemCount;
+      this._itemCount = anyToNaturalBigInt(value);
+      this.setAttribute("item-count", this._itemCount.toString());
+      this._setStyle();
+    }
   }
+
+  private _oldItemCount = 0n;
+  // private _defaultIsCreate = (index: bigint) => index > this._oldItemCount;
+  // private _defaultIsDestroy = (index: bigint) => index < this._oldItemCount;
+  private _isCreate = (index: bigint) => index > this._oldItemCount;
+  private _isDestroy = (index: bigint) => index < this._oldItemCount;
+
   private _itemSize = 0;
   @property({ attribute: "item-size" })
   public get itemSize(): number {
@@ -221,7 +239,8 @@ export abstract class CommonFixedSizeListBuilder<
   protected _setStyle() {
     this._totalScrollHeight6e = this.itemCount * to6eBn(this.itemSize);
     this._ctrlScrollPanelHeight = Math.min(
-      1e4,
+      window.screen.availHeight +
+        (this.viewPort?.viewportHeight || window.screen.availHeight),
       Number(this._totalScrollHeight6e) / 1e6
     );
 
@@ -238,7 +257,7 @@ export abstract class CommonFixedSizeListBuilder<
       to6eBn(this.safeAreaInsetBottom) +
       this.SAFE_RENDER_TOP_6E;
 
-    this._requestRenderAni();
+    this.requestRenderAni();
   }
   protected _scrollProgress = 0;
   public get scrollProgress() {
@@ -281,7 +300,7 @@ export abstract class CommonFixedSizeListBuilder<
             return !(
               preEnrty &&
               preEnrty.isIntersecting === entry.isIntersecting &&
-              preEnrty.type === entry.type &&
+              // preEnrty.type === entry.type &&
               preEnrty.node === entry.node
             );
           });
@@ -310,31 +329,59 @@ export abstract class CommonFixedSizeListBuilder<
     this.dispatchEvent(event);
   }
 
-  protected _ani?: { reqFrameId: number; startTime: number };
-  readonly requestRenderAni = () => this._requestRenderAni();
-  protected _requestRenderAni = (force?: boolean) => {
+  protected _ani?: ScrollAnimationInfo;
+  protected _DEFAULT_ANI_DURACTION = 500; // 每一次触发后，默认运动时间为运动 1s 的时间
+  readonly requestRenderAni = () => {
+    let now: number;
+    /// 如果是在交互中，那么持续地更新最后的一个交互时间
+    if (this._intouch) {
+      now = performance.now();
+    } else {
+      now = this._ani ? this._ani.startTime : performance.now();
+    }
+    this._requestRenderAni(now, false);
+  };
+  protected _requestRenderAni = (now: number, force: boolean) => {
     if (this._ani === undefined || force) {
-      this._renderItems();
-
       const ani =
         this._ani ||
         (this._ani = {
           reqFrameId: 0,
-          startTime: performance.now(),
+          aniDuration: this._DEFAULT_ANI_DURACTION,
+          startTime: now,
         });
+
+      this._renderItems(now, ani);
+
       ani.reqFrameId = requestAnimationFrame(() => {
-        if (
-          ani.startTime + 1e3 /* 每一次触发后，运动 1s 的时间 */ >
-          performance.now()
-        ) {
-          this._requestRenderAni(true);
+        const now = performance.now();
+        if (ani.startTime + ani.aniDuration > now) {
+          this._requestRenderAni(now, true);
         } else {
           this._ani = undefined;
         }
       });
     } else {
-      this._ani.startTime = performance.now();
+      this._ani.startTime = now;
     }
+  };
+  protected _stretchScrollDuration = (scrollDiff: number) => {
+    const scrollScale =
+      (1 + (Math.abs(scrollDiff) * 10) / this._ctrlScrollPanelHeight) ** 2;
+    return this._DEFAULT_ANI_DURACTION * scrollScale;
+  };
+  protected _dampingScrollDiff = (now: number, ani: ScrollAnimationInfo) => {
+    const progress = (now - ani.startTime) / ani.aniDuration;
+    if (progress <= 0) {
+      return 1;
+    }
+    if (progress >= 1) {
+      return 0;
+    }
+    return 1 - this._dampingTimingFunction(progress);
+  };
+  protected _dampingTimingFunction = function easeOutCirc(x: number): number {
+    return Math.sqrt(1 - Math.pow(x - 1, 2));
   };
 
   /**
@@ -378,7 +425,10 @@ export abstract class CommonFixedSizeListBuilder<
   }
 
   /**渲染滚动视图 */
-  protected abstract _renderItems(): unknown;
+  protected abstract _renderItems(
+    now: number,
+    ani: ScrollAnimationInfo
+  ): unknown;
 
   private _safeAreaInsetTop = 0;
   @property({ attribute: "safe-area-inset-top" })
@@ -459,7 +509,7 @@ export abstract class CommonFixedSizeListBuilder<
         this._emitRanderItem({
           index: i,
           node: item,
-          type: "hidden",
+          type: this._isDestroy(i) ? "destroy" : "hidden",
           isIntersecting: false,
         });
         this._inViewItems.delete(i);
@@ -482,7 +532,7 @@ export abstract class CommonFixedSizeListBuilder<
         this._emitRanderItem({
           index,
           node,
-          type: "visible",
+          type: this._isCreate(index) ? "create" : "visible",
           isIntersecting: true,
         });
       }
@@ -567,7 +617,7 @@ export abstract class CommonFixedSizeListBuilder<
       ele.remove();
     }
     this._setStyle();
-    this._requestRenderAni();
+    this.requestRenderAni();
   }
 }
 

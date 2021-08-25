@@ -2,6 +2,19 @@
 
 [![Published on webcomponents.org](https://img.shields.io/badge/webcomponents.org-published-blue.svg)](https://www.webcomponents.org/element/owner/my-element)
 
+## Usage
+
+```bash
+npm i @bfchain/virtual-scroll --save
+yarn add @bfchain/virtual-scroll
+```
+
+```ts
+import "@bfchain/virtual-scroll";
+```
+
+## DEMO
+
 <!--
 ```html
 <custom-element-demo>
@@ -129,8 +142,6 @@
 ```
 -->
 
-## DEMO
-
 ```html
 <scroll-viewport>
   <fixed-size-virtual-list-s1
@@ -201,4 +212,4 @@
 - [ ] 实现 `pushCount(newCount:bigint)`, `insertCount(newCount:bigint, refIndex = 0n)`
 - [ ] 实现 `scrollToIndex(index:bigint)`
 - [ ] 支持 `scroll-behavior: smooth`
-- [ ] 滚动的平滑衰减应该基于帧时间而不是基于帧数
+- [x] 滚动的平滑衰减应该基于帧时间而不是基于帧数

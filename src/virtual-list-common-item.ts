@@ -1,4 +1,9 @@
-import { LitElement, html, css } from "lit-element";
+import {
+  LitElement,
+  html,
+  css,
+  supportsAdoptingStyleSheets,
+} from "lit-element";
 
 export abstract class VirtualListCommonItemElement extends LitElement {
   static styles = css`
@@ -9,7 +14,7 @@ export abstract class VirtualListCommonItemElement extends LitElement {
       transform: var(--virtual-transform);
       display: var(--virtual-display);
       z-index: var(--virtual-index);
-      will-change: transform;
+      will-change: transform, display, z-index;
       --virtual-display: block;
       width: 100%;
     }
@@ -45,11 +50,25 @@ export abstract class VirtualListCommonItemElement extends LitElement {
       return;
     }
     this._updating = true;
-    queueMicrotask(() => {
-      this._updating = false;
-      this.style.cssText = this._getHostCssText();
-    });
+    queueMicrotask(this._doUpdateStyles);
   }
+  private _doUpdateStyles = supportsAdoptingStyleSheets
+    ? (() => {
+        const cssStyle = new CSSStyleSheet();
+        (this.shadowRoot as any)!.adoptedStyleSheets = [
+          (this.constructor as typeof VirtualListCommonItemElement).styles
+            .styleSheet,
+          cssStyle,
+        ];
+        return () => {
+          this._updating = false;
+          (cssStyle as any).replace(`:host{${this._getHostCssText()}}`);
+        };
+      })()
+    : () => {
+        this._updating = false;
+        this.style.cssText = this._getHostCssText();
+      };
   protected _getHostCssText() {
     let cssText: string;
     if (this._virtualVisible) {

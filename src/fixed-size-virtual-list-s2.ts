@@ -1,5 +1,9 @@
-import { CommonFixedSizeListBuilder } from "./common-fixed-size-virtual-list-builder";
+import {
+  CommonFixedSizeListBuilder,
+  ScrollAnimationInfo,
+} from "./common-fixed-size-virtual-list-builder";
 import { css, customElement, html, query, TemplateResult } from "lit-element";
+import { virtualListViewStyle } from "./fixed-size-virtual-list-s1";
 
 @customElement("fixed-size-virtual-list-s2")
 export class FixedSizeVirtualListS2Element extends CommonFixedSizeListBuilder {
@@ -15,58 +19,40 @@ export class FixedSizeVirtualListS2Element extends CommonFixedSizeListBuilder {
           top: 0;
           z-index: 1;
         }
-        :host > #scroll-ctrl .scroll-dir .top,
-        :host > #scroll-ctrl .scroll-dir .bottom {
+        :host .scroll-dir .top,
+        :host .scroll-dir .bottom {
           content: " ";
           display: block;
           visibility: hidden;
           height: var(--ctrl-scroll-panel-height);
         }
-        :host > #scroll-ctrl .scroll-dir .center {
+        :host .scroll-dir .center {
           scroll-snap-align: center;
           height: 0;
         }
-        :host > #scroll-ctrl .scroll-dir {
+        :host .scroll-dir {
           height: 100%;
           scroll-snap-type: y mandatory;
           overflow: overlay;
         }
-        :host > #scroll-ctrl .scroll-dir.unscroll {
+        :host .scroll-dir.unscroll {
           overflow: hidden;
         }
-        :host > #scroll-ctrl #scroll-down {
+        :host #scroll-down {
           position: sticky;
           left: 0;
           top: 0;
         }
-        :host > #scroll-ctrl #virtual-list-view-wrapper {
-          height: 0;
-
-          position: sticky;
-          top: 0;
-          transform: translateY(calc(var(--cache-render-top) * -1));
-          z-index: 1;
-        }
-        :host > #scroll-ctrl #virtual-list-view {
-          height: calc(
-            var(--viewport-height) + var(--cache-render-top) +
-              var(--cache-render-bottom)
-          );
-          width: 100%;
-
-          overflow: hidden;
-          contain: strict;
-          transform: translate3d(0, 0, 0);
-        }
-        :host > #scroll-ctrl .scroll-dir::-webkit-scrollbar {
+        :host .scroll-dir::-webkit-scrollbar {
           width: 4px;
           background-color: transparent;
         }
-        :host > #scroll-ctrl .scroll-dir::-webkit-scrollbar-thumb {
-          background-color: rgba(0, 0, 0, 0.3);
+        :host .scroll-dir::-webkit-scrollbar-thumb {
+          background-color: rgba(0, 0, 0, 0.1);
           border-radius: 2px;
         }
       `,
+      virtualListViewStyle,
     ];
   }
   render(): TemplateResult {
@@ -120,7 +106,7 @@ export class FixedSizeVirtualListS2Element extends CommonFixedSizeListBuilder {
   private _preScrollDownTop = 0;
   private _preScrollDownDiff = 0;
 
-  protected _renderItems() {
+  protected _renderItems(now: number, ani: ScrollAnimationInfo) {
     if (!this.viewPort || !this._templateFactory) {
       return;
     }
@@ -133,6 +119,7 @@ export class FixedSizeVirtualListS2Element extends CommonFixedSizeListBuilder {
     this._preScrollDownTop = scrollDownTop;
 
     let scrollDiff = 0;
+    let scrollDiffChanged = true;
     if (scrollDownDiff > 0 || (scrollDownDiff < 0 && this._intouch)) {
       scrollDiff = scrollDownDiff;
       this._preScrollDownDiff = scrollDownDiff;
@@ -147,18 +134,19 @@ export class FixedSizeVirtualListS2Element extends CommonFixedSizeListBuilder {
       this._scrollCtrlDown.scrollTop = 0;
       this._preScrollDownTop = this._scrollCtrlDown.scrollTop;
       this.viewPort.scrollTop = 0;
-    } else if (scrollDownDiff < 0) {
-      scrollDiff = this._preScrollDownDiff;
-      this._preScrollDownDiff *= 0.9;
-    } else if (scrollUpDiff > 0) {
-      scrollDiff = this._preScrollUpDiff;
-      this._preScrollUpDiff *= 0.9;
     } else {
-      /// 平滑滚动
-      scrollDiff = this._preScrollDiff * 0.9;
+      scrollDiffChanged = false;
     }
 
-    this._preScrollDiff = scrollDiff;
+    /// 主动的滚动变化；同时改变滚动的时间
+    if (scrollDiffChanged) {
+      this._preScrollDiff = scrollDiff;
+      ani.aniDuration = this._stretchScrollDuration(scrollDiff);
+    }
+    /// 阻尼动画缓动
+    else {
+      scrollDiff = this._preScrollDiff * this._dampingScrollDiff(now, ani);
+    }
 
     this._dev &&
       console.log(
