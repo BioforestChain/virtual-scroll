@@ -488,6 +488,7 @@ export abstract class CommonFixedSizeListBuilder<
         Number(index - viewStartIndex) * this.itemSize -
         koordinatenverschiebung;
       node.virtualVisible = true;
+      node.virtualIndex = Number(index - viewStartIndex);
     }
 
     /// 移除剩余的没有被重复利用的元素；（使用挪动到视图之外来替代移除，避免过度抖动）

@@ -133,7 +133,7 @@
 
 ```html
 <scroll-viewport>
-  <fixed-size-virtual-list
+  <fixed-size-virtual-list-s1
     id="l"
     item-size="200"
     item-count="1000000"
@@ -157,7 +157,7 @@
         <div class="slider-item">rethink, this is grid.</div>
       </div>
     </virtual-list-custom-item>
-  </fixed-size-virtual-list>
+  </fixed-size-virtual-list-s1>
 </scroll-viewport>
 ```
 

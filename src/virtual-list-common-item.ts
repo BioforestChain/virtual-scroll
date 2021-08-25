@@ -8,6 +8,7 @@ export abstract class VirtualListCommonItemElement extends LitElement {
       top: 0;
       transform: var(--virtual-transform);
       display: var(--virtual-display);
+      z-index: var(--virtual-index);
       will-change: transform;
       --virtual-display: block;
       width: 100%;
@@ -30,6 +31,14 @@ export abstract class VirtualListCommonItemElement extends LitElement {
     this._virtualVisible = value;
     this._updateStyles();
   }
+  private _virtualIndex = 0;
+  public get virtualIndex(): number {
+    return this._virtualIndex;
+  }
+  public set virtualIndex(value: number) {
+    this._virtualIndex = value;
+    this._updateStyles();
+  }
   private _updating = false;
   protected _updateStyles() {
     if (this._updating) {
@@ -44,7 +53,7 @@ export abstract class VirtualListCommonItemElement extends LitElement {
   protected _getHostCssText() {
     let cssText: string;
     if (this._virtualVisible) {
-      cssText = `--virtual-transform:translateY(${this._virtualTransformTop}px)`;
+      cssText = `--virtual-transform:translateY(${this._virtualTransformTop}px);--virtual-index:${this._virtualIndex}`;
     } else {
       cssText = `--virtual-display:none`;
     }
