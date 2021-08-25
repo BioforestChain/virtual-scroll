@@ -251,6 +251,10 @@ export abstract class CommonFixedSizeListBuilder<
     // this.style.setProperty("--scroll-progress", value.toFixed(6));
   }
   // scrollProcess = 0;
+  protected _pre_rangechange_event_collection?: Map<
+    bigint,
+    RenderRangeChangeEntry<T>
+  >;
   protected _rangechange_event_collection?: Map<
     bigint,
     RenderRangeChangeEntry<T>
@@ -260,12 +264,32 @@ export abstract class CommonFixedSizeListBuilder<
       this._rangechange_event_collection = new Map();
       const collection = this._rangechange_event_collection;
       queueMicrotask(() => {
-        if (this._rangechange_event_collection === collection) {
-          this._rangechange_event_collection = undefined;
+        if (this._rangechange_event_collection !== collection) {
+          return;
         }
-        const entries = [...collection.values()].sort((a, b) =>
+        const preCollection = this._pre_rangechange_event_collection;
+        this._pre_rangechange_event_collection =
+          this._rangechange_event_collection;
+        this._rangechange_event_collection = undefined;
+
+        let entries = [...collection.values()].sort((a, b) =>
           a.index - b.index > 0n ? 1 : -1
         );
+        if (preCollection) {
+          entries = entries.filter((entry) => {
+            const preEnrty = preCollection.get(entry.index);
+            return !(
+              preEnrty &&
+              preEnrty.isIntersecting === entry.isIntersecting &&
+              preEnrty.type === entry.type &&
+              preEnrty.node === entry.node
+            );
+          });
+        }
+        if (entries.length === 0) {
+          return;
+        }
+
         const info: RenderRangeChangeDetail<T> = {
           entries,
         };
