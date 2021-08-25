@@ -10,11 +10,20 @@ import type { ScrollViewportElement } from "./scroll-viewport";
 import type { VirtualListCustomItemElement } from "./virtual-list-custom-item";
 import { css, LitElement, property, TemplateResult } from "lit-element";
 import { VirtualListDefaultItemElement } from "./virtual-list-default-item";
+import { StatefulItemCount } from "./stateful-item-count";
 
 export type ScrollAnimationInfo = {
   reqFrameId: number;
   startTime: number;
   aniDuration: number;
+};
+
+export type VisibilityState<
+  E extends string = string,
+  L extends string = string
+> = {
+  enter: E;
+  leave: L;
 };
 
 /**
@@ -36,7 +45,10 @@ export type ScrollAnimationInfo = {
  * @prop {bigint} virtualScrollTop - change the scroll top. without animation
  */
 export abstract class CommonFixedSizeListBuilder<
-  T extends HTMLElement = HTMLElement
+  T extends HTMLElement = HTMLElement,
+  S extends VisibilityState =
+    | VisibilityState<"visible", "hidden">
+    | VisibilityState<"create", "destroy">
 > extends LitElement {
   static get styles() {
     return [
@@ -69,7 +81,7 @@ export abstract class CommonFixedSizeListBuilder<
 
     /// bind custom events
     this.addEventListener("renderrangechange", (event) => {
-      this._onrenderrangechange?.(event as RenderRangeChangeEvent);
+      this._onrenderrangechange?.(event as RenderRangeChangeEvent<T, S>);
     });
     this.__initInTouch();
   }
@@ -185,43 +197,48 @@ export abstract class CommonFixedSizeListBuilder<
 
   //#region attr & prop
 
-  protected _onrenderrangechange?: RenderRangeChangeHanlder;
+  protected _onrenderrangechange?: RenderRangeChangeHanlder<T, S>;
   @property({ attribute: "onrenderrangechange" })
-  public get onrenderrangechange(): null | RenderRangeChangeHanlder {
+  public get onrenderrangechange(): null | RenderRangeChangeHanlder<T, S> {
     return this._onrenderrangechange || null;
   }
-  public set onrenderrangechange(value: unknown) {
+  public set onrenderrangechange(
+    value: undefined | null | string | RenderRangeChangeHanlder<T, S>
+  ) {
     if (typeof value === "string") {
       value = Function(
         "event",
         `(${value})&&event.preventDefault()`
-      ) as RenderRangeChangeHanlder;
+      ) as RenderRangeChangeHanlder<T, S>;
     }
     if (typeof value !== "function") {
       value = undefined;
     }
-    this._onrenderrangechange = value as RenderRangeChangeHanlder;
+    this._onrenderrangechange = value;
   }
-  private _itemCount = 0n;
   @property({ attribute: "item-count" })
   public get itemCount(): bigint {
-    return this._itemCount;
+    return this.itemCountStateManager.itemCount;
   }
   public set itemCount(value: unknown) {
     const newVal = anyToNaturalBigInt(value);
-    if (newVal !== this._itemCount) {
-      this._oldItemCount = this._itemCount;
-      this._itemCount = anyToNaturalBigInt(value);
-      this.setAttribute("item-count", this._itemCount.toString());
-      this._setStyle();
+    const state = this.itemCountStateManager;
+    if (newVal !== state.itemCount) {
+      if (newVal > state.itemCount) {
+        state.push(newVal - state.itemCount);
+      } else {
+        state.pop(state.itemCount - newVal);
+      }
     }
   }
-
-  private _oldItemCount = 0n;
-  // private _defaultIsCreate = (index: bigint) => index > this._oldItemCount;
-  // private _defaultIsDestroy = (index: bigint) => index < this._oldItemCount;
-  private _isCreate = (index: bigint) => index > this._oldItemCount;
-  private _isDestroy = (index: bigint) => index < this._oldItemCount;
+  readonly itemCountStateManager = new StatefulItemCount<S>(
+    (value: bigint) => {
+      this.setAttribute("item-count", value.toString());
+      this._setStyle();
+    },
+    { enter: "visible", leave: "hidden" } as S,
+    { enter: "create", leave: "destroy" } as S
+  );
 
   private _itemSize = 0;
   @property({ attribute: "item-size" })
@@ -272,13 +289,13 @@ export abstract class CommonFixedSizeListBuilder<
   // scrollProcess = 0;
   protected _pre_rangechange_event_collection?: Map<
     bigint,
-    RenderRangeChangeEntry<T>
+    RenderRangeChangeEntry<T, S>
   >;
   protected _rangechange_event_collection?: Map<
     bigint,
-    RenderRangeChangeEntry<T>
+    RenderRangeChangeEntry<T, S>
   >;
-  protected _emitRanderItem(item: RenderRangeChangeEntry<T>) {
+  protected _emitRanderItem(item: RenderRangeChangeEntry<T, S>) {
     if (!this._rangechange_event_collection) {
       this._rangechange_event_collection = new Map();
       const collection = this._rangechange_event_collection;
@@ -352,6 +369,7 @@ export abstract class CommonFixedSizeListBuilder<
         });
 
       this._renderItems(now, ani);
+      this.itemCountStateManager.clearState(now);
 
       ani.reqFrameId = requestAnimationFrame(() => {
         const now = performance.now();
@@ -509,7 +527,7 @@ export abstract class CommonFixedSizeListBuilder<
         this._emitRanderItem({
           index: i,
           node: item,
-          type: this._isDestroy(i) ? "destroy" : "hidden",
+          type: this.itemCountStateManager.getStateByIndex(i).leave,
           isIntersecting: false,
         });
         this._inViewItems.delete(i);
@@ -532,7 +550,7 @@ export abstract class CommonFixedSizeListBuilder<
         this._emitRanderItem({
           index,
           node,
-          type: this._isCreate(index) ? "create" : "visible",
+          type: this.itemCountStateManager.getStateByIndex(index).enter,
           isIntersecting: true,
         });
       }
@@ -637,20 +655,35 @@ export class ItemPool<T> {
   }
 }
 
-interface RenderRangeChangeEntry<T extends HTMLElement = HTMLElement> {
-  node: VirtualListDefaultItemElement<T>;
-  index: bigint;
-  type: "visible" | "hidden" | "create" | "destroy";
-  isIntersecting: boolean;
-}
-interface RenderRangeChangeDetail<T extends HTMLElement = HTMLElement> {
-  entries: RenderRangeChangeEntry<T>[];
+type RenderRangeChangeEntry<
+  T extends HTMLElement = HTMLElement,
+  S extends VisibilityState = VisibilityState
+> =
+  | {
+      node: VirtualListDefaultItemElement<T>;
+      index: bigint;
+      type: S["enter"];
+      isIntersecting: true;
+    }
+  | {
+      node: VirtualListDefaultItemElement<T>;
+      index: bigint;
+      type: S["leave"];
+      isIntersecting: false;
+    };
+interface RenderRangeChangeDetail<
+  T extends HTMLElement = HTMLElement,
+  S extends VisibilityState = VisibilityState
+> {
+  entries: RenderRangeChangeEntry<T, S>[];
 }
 
 export class RenderRangeChangeEvent<
-  T extends HTMLElement = HTMLElement
-> extends CustomEvent<RenderRangeChangeDetail<T>> {}
+  T extends HTMLElement = HTMLElement,
+  S extends VisibilityState = VisibilityState
+> extends CustomEvent<RenderRangeChangeDetail<T, S>> {}
 
-type RenderRangeChangeHanlder = <T extends HTMLElement = HTMLElement>(
-  event: RenderRangeChangeEvent<T>
-) => unknown;
+type RenderRangeChangeHanlder<
+  T extends HTMLElement = HTMLElement,
+  S extends VisibilityState = VisibilityState
+> = (event: RenderRangeChangeEvent<T, S>) => unknown;
