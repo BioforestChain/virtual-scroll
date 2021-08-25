@@ -62,8 +62,9 @@ export abstract class CommonFixedSizeListBuilder<
   }
   protected _style = document.createElement("style");
   performUpdate() {
-    super.performUpdate();
+    const res = super.performUpdate();
     this.renderRoot.appendChild(this._style);
+    return res;
   }
 
   protected _dev = false;
@@ -372,13 +373,6 @@ export abstract class CommonFixedSizeListBuilder<
     this._setStyle();
   }
 
-  protected _preScrollDiff = 0;
-
-  protected _preScrollUpTop = 0;
-  protected _preScrollUpDiff = 0;
-  protected _preScrollDownTop = 0;
-  protected _preScrollDownDiff = 0;
-
   /**渲染滚动视图 */
   protected abstract _renderItems(): unknown;
 
@@ -487,19 +481,13 @@ export abstract class CommonFixedSizeListBuilder<
           type: "visible",
           isIntersecting: true,
         });
-        // (node as any).disabled_ani = true;
       }
 
       /// 设置偏移量
-      node.style.setProperty(
-        "--virtual-transform",
-        `translateY(${
-          // scrollTop +
-          Number(index - viewStartIndex) * this.itemSize -
-          koordinatenverschiebung
-        }px)`
-      );
-      node.style.removeProperty("--virtual-display");
+      node.virtualTransformTop =
+        Number(index - viewStartIndex) * this.itemSize -
+        koordinatenverschiebung;
+      node.virtualVisible = true;
     }
 
     /// 移除剩余的没有被重复利用的元素；（使用挪动到视图之外来替代移除，避免过度抖动）
@@ -509,7 +497,7 @@ export abstract class CommonFixedSizeListBuilder<
       }
     } else {
       for (const node of rms) {
-        node.style.setProperty("--virtual-display", `none`);
+        node.virtualVisible = false;
       }
     }
 
@@ -527,15 +515,12 @@ export abstract class CommonFixedSizeListBuilder<
         bottom6e < cacheRenderScrollTop6e ||
         top6e > cacheRenderScrollBottom6e
       ) {
-        customScrollEle.style.setProperty("--virtual-display", `none`);
+        customScrollEle.virtualVisible = false;
       } else {
-        customScrollEle.style.setProperty(
-          "--virtual-transform",
-          `translateY(${
-            (top6e + cacheRenderTop6e - virtualScrollTop6e) / bi6e
-          }px)`
+        customScrollEle.virtualVisible = true;
+        customScrollEle.virtualTransformTop = Number(
+          (top6e + cacheRenderTop6e - virtualScrollTop6e) / bi6e
         );
-        customScrollEle.style.removeProperty("--virtual-display");
       }
       // console.log(customScrollEle);
     }

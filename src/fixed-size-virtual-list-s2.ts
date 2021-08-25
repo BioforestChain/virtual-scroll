@@ -1,8 +1,8 @@
 import { CommonFixedSizeListBuilder } from "./common-fixed-size-virtual-list-builder";
 import { css, customElement, html, query, TemplateResult } from "lit-element";
 
-@customElement("fixed-size-virtual-list")
-export class FixedSizeVirtualListElement extends CommonFixedSizeListBuilder {
+@customElement("fixed-size-virtual-list-s2")
+export class FixedSizeVirtualListS2Element extends CommonFixedSizeListBuilder {
   static get styles() {
     return [
       ...super.styles,
@@ -70,7 +70,6 @@ export class FixedSizeVirtualListElement extends CommonFixedSizeListBuilder {
     ];
   }
   render(): TemplateResult {
-    console.log("render!!!");
     return html`
       <slot name="template"></slot>
       <div id="scroll-ctrl">
@@ -113,6 +112,13 @@ export class FixedSizeVirtualListElement extends CommonFixedSizeListBuilder {
     const tplEles = this._tplSlot.assignedElements();
     return tplEles[0];
   }
+
+  private _preScrollDiff = 0;
+
+  private _preScrollUpTop = 0;
+  private _preScrollUpDiff = 0;
+  private _preScrollDownTop = 0;
+  private _preScrollDownDiff = 0;
 
   protected _renderItems() {
     if (!this.viewPort || !this._templateFactory) {
@@ -183,6 +189,6 @@ export class FixedSizeVirtualListElement extends CommonFixedSizeListBuilder {
 
 declare global {
   interface HTMLElementTagNameMap {
-    "fixed-size-virtual-list": FixedSizeVirtualListElement;
+    "fixed-size-virtual-list-s2": FixedSizeVirtualListS2Element;
   }
 }

@@ -93,21 +93,8 @@
   </head>
   <body>
     <scroll-viewport>
-      <div
-        style="
-          color: #ffc107;
-          background-color: rgba(255, 255, 255, 0.2);
-          height: 100px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        "
-        slot="bounce-top"
-      >
-        到顶了
-      </div>
       <!-- <header>some header content</header> -->
-      <fixed-size-virtual-list
+      <fixed-size-virtual-list-s1
         id="l"
         item-size="200"
         item-count="1000000"
@@ -115,7 +102,6 @@
         safe-area-inset-bottom="100"
         onrenderrangechange="rangeChange(event)"
       >
-        <div id="scroll-ctrl">啊啊啊</div>
         <div class="block-card-item" slot="template">
           <div class="block-content">
             <div class="height">Height: <span name="height"></span></div>
@@ -132,22 +118,9 @@
             <div class="slider-item">rethink, this is grid.</div>
           </div>
         </virtual-list-custom-item>
-      </fixed-size-virtual-list>
+      </fixed-size-virtual-list-s1>
       <!-- <button class="top-button" onclick="gotoTop()">go top</button>
       <footer>some footer content</footer> -->
-      <div
-        style="
-          color: #4caf50;
-          background-color: rgba(255, 255, 255, 0.2);
-          height: 100px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        "
-        slot="bounce-bottom"
-      >
-        到底了
-      </div>
     </scroll-viewport>
   </body>
   <script>

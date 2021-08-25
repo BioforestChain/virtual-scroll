@@ -166,8 +166,10 @@
 1. `<scroll-viewport>`
    > viewport for virtual scroll.
    - `@slot` - This element has a slot
-2. `<fixed-size-virtual-list>`
+2. `<fixed-size-virtual-list-s1>`/`<fixed-size-virtual-list-s2>`
    > virtual scroll list with fixed size.
+   > s1 means has only one scrollbar
+   > s2 means has two scrollbar
    - `@slot` - for custom list item
    - `@slot` `template` - for buildable item
    - `@csspart` `scroll-up` - the scroll up controller

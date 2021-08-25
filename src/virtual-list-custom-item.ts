@@ -18,7 +18,7 @@ export class VirtualListCustomItemElement extends VirtualListCommonItemElement {
   }
   public set virtualPositionTop(value: unknown) {
     this._virtualPositionTop = anyToBigInt(value);
-    this.updateRender();
+    this._updateVirtualScrollRender();
   }
   private _itemSize = 0;
   @property({ attribute: "item-size" })
@@ -27,10 +27,13 @@ export class VirtualListCustomItemElement extends VirtualListCommonItemElement {
   }
   public set itemSize(value: unknown) {
     this._itemSize = anyToNaturalFloat(value);
-    this.style.setProperty("--item-size", `${this.itemSize}px`);
-    this.updateRender();
+    this._updateStyles();
+    this._updateVirtualScrollRender();
   }
-  private updateRender() {
+  protected _getHostCssText() {
+    return `--item-size:${this._itemSize}px;${super._getHostCssText()}`;
+  }
+  private _updateVirtualScrollRender() {
     (this.parentElement as CommonFixedSizeListBuilder)?.requestRenderAni?.();
   }
 }

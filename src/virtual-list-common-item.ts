@@ -31,21 +31,24 @@ export abstract class VirtualListCommonItemElement extends LitElement {
     this._updateStyles();
   }
   private _updating = false;
-  private _updateStyles() {
+  protected _updateStyles() {
     if (this._updating) {
       return;
     }
     this._updating = true;
     queueMicrotask(() => {
       this._updating = false;
-      let cssText: string;
-      if (this._virtualVisible) {
-        cssText = `--virtual-display:none`;
-      } else {
-        cssText = `--virtual-transform:translateY(${this._virtualTransformTop}px)`;
-      }
-      this.style.cssText = cssText;
+      this.style.cssText = this._getHostCssText();
     });
+  }
+  protected _getHostCssText() {
+    let cssText: string;
+    if (this._virtualVisible) {
+      cssText = `--virtual-transform:translateY(${this._virtualTransformTop}px)`;
+    } else {
+      cssText = `--virtual-display:none`;
+    }
+    return cssText;
   }
   render() {
     return html`<slot></slot>`;
