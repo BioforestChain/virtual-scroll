@@ -67,7 +67,7 @@ export class FixedSizeVirtualListS1Element extends CommonFixedSizeListBuilder {
   render(): TemplateResult {
     return html`
       <slot name="template"></slot>
-      <div id="scroll-ctrl" @scroll=${this.requestRenderAni}>
+      <div id="scroll-ctrl" part="scroll-ctrl" @scroll=${this.requestRenderAni}>
         <div id="virtual-list-view-wrapper">
           <div id="virtual-list-view" part="virtual-list-view">
             <slot></slot>

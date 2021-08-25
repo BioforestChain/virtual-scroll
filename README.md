@@ -173,9 +173,9 @@
    > - `s2` means has two scrollbar for two direction scroll (maybe you will need it).
    - `@slot` - for custom list item
    - `@slot` `template` - for buildable item
-   - `@csspart` `scroll-ctrl` - (s1) the scroll up controller
+   - `@csspart` `scroll-ctrl` - (s1) the scroll controller
    - `@csspart` `scroll-up` - (s2) the scroll up controller
-   - `@csspart` `scroll-down` - (s2) the scroll up controller
+   - `@csspart` `scroll-down` - (s2) the scroll down controller
    - `@csspart` `virtual-list-view` - the scroll item container
    - `@fires` `renderrangechange` - when scroll, the item will need render changed
    - `@attr` `{bigint} item-count` -
