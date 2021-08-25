@@ -74,8 +74,18 @@ export class FixedSizeVirtualListElement extends CommonFixedSizeListBuilder {
     return html`
       <slot name="template"></slot>
       <div id="scroll-ctrl">
-        <div id="scroll-up" class="scroll-dir" part="scroll-up">
-          <div id="scroll-down" class="scroll-dir" part="scroll-down">
+        <div
+          id="scroll-up"
+          class="scroll-dir"
+          part="scroll-up"
+          @scroll=${this.requestRenderAni}
+        >
+          <div
+            id="scroll-down"
+            class="scroll-dir"
+            part="scroll-down"
+            @scroll=${this.requestRenderAni}
+          >
             <div id="virtual-list-view-wrapper">
               <div id="virtual-list-view" part="virtual-list-view">
                 <slot></slot>
@@ -96,14 +106,6 @@ export class FixedSizeVirtualListElement extends CommonFixedSizeListBuilder {
   private _scrollCtrlUp!: HTMLDivElement;
   @query(":host #scroll-down", true)
   private _scrollCtrlDown!: HTMLDivElement;
-
-  constructor() {
-    super();
-    this.updateComplete.then(() => {
-      this._scrollCtrlUp.addEventListener("scroll", this.requestRenderAni);
-      this._scrollCtrlDown.addEventListener("scroll", this.requestRenderAni);
-    });
-  }
 
   @query('slot[name="template"]', true)
   private _tplSlot!: HTMLSlotElement;
