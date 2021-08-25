@@ -35,37 +35,27 @@
         background-color: #999;
         position: relative;
     }
-    .list-1 .block-card-item {
-        --card-color: #2196f3;
-        /* background: linear-gradient(45deg, #2196f3, transparent); */
-    }
-    .list-2 .block-card-item {
-        --card-color: #e91e63;
-        /* background: linear-gradient(45deg, #e91e63, transparent); */
-    }
     .block-card-item {
         height: 200px;
         width: 100%;
         box-sizing: border-box;
         --card-color: #2196f3;
-        /* border: 1px solid rgba(0, 0, 0, 0.2); */
-        height: 240px;
-        padding: 20px 45px;
+        height: 100%;
+        padding: 10px 25px;
     }
     .block-card-item [name="height"] {
         contain: strict;
     }
     .block-content {
-        height: 185px;
+        height: 100%;
         padding: 30px;
         box-sizing: border-box;
         background: linear-gradient(180deg, var(--card-color), #fff);
         border-radius: 20px;
         /* box-shadow: -4px -4px 8px rgba(255, 255, 255, 0.2),
             4px 4px 8px rgba(0, 0, 0, 0.2); */
-        /* filter: drop-shadow(-4px -4px 8px rgba(255, 255, 255, 0.2)) drop-shadow(4px 4px 8px rgba(0, 0, 0, 0.2)); */
     }
-    .block-card-item.last .chain-link {
+    .block-card-item.first .chain-link {
         display: none;
     }
     .block-card-item.hide {
@@ -73,12 +63,11 @@
     }
     .chain-link {
         position: absolute;
-        bottom: 0;
+        top: -30px;
         left: 0;
         z-index: 2;
         height: 60px;
         width: 100%;
-        /* opacity: 0.9; */
         display: flex;
         flex-direction: row;
         justify-content: space-around;
@@ -87,7 +76,7 @@
     .chain-link::after {
         content: " ";
         width: 10px;
-        background: #fff;
+        background: #81c784;
         /* box-shadow: -1px -1px 2px rgba(255, 255, 255, 0.2),
             1px 1px 2px rgba(0, 0, 0, 0.2); */
         border-radius: 5px;
@@ -114,21 +103,24 @@
     <script>
     function rangeChange(event) {
         const { entries } = event.detail;
-        for (const { node, index, type } of entries) {
-        if (type == "create" || type == "visible") {
-            // console.log("%s %c%s", viewClass, "color:green", type, index);
-            const height = (this.l.itemCount - index).toString();
+        for (const { node, index, isIntersecting } of entries) {
+        const viewClass = event.target.className;
+        if (isIntersecting) {
+            const height = l.itemCount - index;
             const heightEle = node.querySelector("[name=height]");
             if (heightEle.textContent != height) {
             (heightEle.firstChild || heightEle).textContent = height;
-            node.style.setProperty("z-index", height);
             }
-            node.classList.toggle("last", height === "1" || index === 1n);
-            console.log(index);
-            node.classList.toggle("hide", index === 2n);
-            // node.querySelector("[name=offsetTop]").innerHTML = node.offsetTop;
+            node.contentNode.classList.toggle(
+            "first",
+            index === 0n || index === 3n
+            );
+            node.contentNode.classList.toggle("hide", index === 2n);
         }
         }
+    }
+    function gotoTop() {
+        l.virtualScrollTop = 0;
     }
     </script>
     <next-code-block></next-code-block>
@@ -141,7 +133,7 @@
 
 ```html
 <scroll-viewport>
-  <fixed-size-list
+  <fixed-size-virtual-list
     id="l"
     item-size="200"
     item-count="1000000"
@@ -155,17 +147,17 @@
       </div>
       <div class="chain-link"></div>
     </div>
-    <custom-list-item item-size="400">
+    <virtual-list-custom-item item-size="400">
       <div class="my-sliders">
         <div class="slider-item">This is Banner!</div>
       </div>
-    </custom-list-item>
-    <custom-list-item position-top="812" item-size="200">
+    </virtual-list-custom-item>
+    <virtual-list-custom-item position-top="800" item-size="200">
       <div class="my-sliders">
         <div class="slider-item">rethink, this is grid.</div>
       </div>
-    </custom-list-item>
-  </fixed-size-list>
+    </virtual-list-custom-item>
+  </fixed-size-virtual-list>
 </scroll-viewport>
 ```
 
@@ -174,7 +166,7 @@
 1. `<scroll-viewport>`
    > viewport for virtual scroll.
    - `@slot` - This element has a slot
-2. `<fixed-size-list>`
+2. `<fixed-size-virtual-list>`
    > virtual scroll list with fixed size.
    - `@slot` - for custom list item
    - `@slot` `template` - for buildable item
@@ -190,8 +182,15 @@
    - `@attr` `{number} cache-render-bottom` - will make list-view higher, for render more item. like {cache-render-top}
    - `@method` `refresh()` - if you change the attr directly by set property. you may need call the method
    - `@prop` `{bigint} virtualScrollTop` - change the scroll top. without animation
-3. `<custom-list-item>`
+3. `<virtual-list-custom-item>`
    > custom item in virtual scroll list
    - `@slot` - for custom list item
    - `@attr` `{bigint} position-top` - the posiction in virtual scroll list
    - `@attr` `{number} item-size` - the item height
+
+## TODO
+
+- [x] fixed-size-virtual-list 重构成 LitElement
+- [x] 抽象出 common-fixed-size-virtual-list-builder 以扩展多种不同滚动策略
+- [ ] fixed-size-virtual-list 需要正确区分 create / visible / hidden / destroy 四种状态
+- [ ] create 与 destroy 发生的时候，如果该元素不在页面中，不应该发生滚动

@@ -21,6 +21,7 @@ export const anyToBigInt = (val: unknown) => {
     return 0n;
   }
 };
+export const bi6e = 1000000n;
 export const anyToNaturalBigInt = (val: unknown) => {
   const numVal = anyToBigInt(val);
   return numVal < 0n ? 0n : numVal;

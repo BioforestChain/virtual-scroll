@@ -1,6 +1,7 @@
-import { LitElement, html, customElement, property, css } from "lit-element";
+import { customElement, property } from "lit-element";
 import { anyToBigInt, anyToNaturalFloat } from "./helper";
-import type { FixedSizeListBuilderElement } from "./fixed-size-list";
+import type { CommonFixedSizeListBuilder } from "./common-fixed-size-virtual-list-builder";
+import { VirtualListCommonItemElement } from "./virtual-list-common-item";
 
 /**
  * custom item in virtual scroll list
@@ -8,13 +9,8 @@ import type { FixedSizeListBuilderElement } from "./fixed-size-list";
  * @attr {bigint} position-top - the posiction in virtual scroll list
  * @attr {number} item-size - the item height
  */
-@customElement("custom-list-item")
-export class CustomListItemElement extends LitElement {
-  static styles = css`
-    :host {
-      height: var(--item-size);
-    }
-  `;
+@customElement("virtual-list-custom-item")
+export class VirtualListCustomItemElement extends VirtualListCommonItemElement {
   private _virtualPositionTop = 0n;
   @property({ attribute: "position-top" })
   public get virtualPositionTop(): bigint {
@@ -34,16 +30,13 @@ export class CustomListItemElement extends LitElement {
     this.style.setProperty("--item-size", `${this.itemSize}px`);
     this.updateRender();
   }
-  render() {
-    return html`<slot></slot>`;
-  }
   private updateRender() {
-    (this.parentElement as FixedSizeListBuilderElement)?.requestRenderAni?.();
+    (this.parentElement as CommonFixedSizeListBuilder)?.requestRenderAni?.();
   }
 }
 
 declare global {
   interface HTMLElementTagNameMap {
-    "custom-list-item": CustomListItemElement;
+    "virtual-list-custom-item": VirtualListCustomItemElement;
   }
 }

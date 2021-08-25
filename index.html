@@ -25,37 +25,27 @@
         background-color: #999;
         position: relative;
       }
-      .list-1 .block-card-item {
-        --card-color: #2196f3;
-        /* background: linear-gradient(45deg, #2196f3, transparent); */
-      }
-      .list-2 .block-card-item {
-        --card-color: #e91e63;
-        /* background: linear-gradient(45deg, #e91e63, transparent); */
-      }
       .block-card-item {
         height: 200px;
         width: 100%;
         box-sizing: border-box;
         --card-color: #2196f3;
-        /* border: 1px solid rgba(0, 0, 0, 0.2); */
-        height: 240px;
-        padding: 20px 45px;
+        height: 100%;
+        padding: 10px 25px;
       }
       .block-card-item [name="height"] {
         contain: strict;
       }
       .block-content {
-        height: 185px;
+        height: 100%;
         padding: 30px;
         box-sizing: border-box;
         background: linear-gradient(180deg, var(--card-color), #fff);
         border-radius: 20px;
         /* box-shadow: -4px -4px 8px rgba(255, 255, 255, 0.2),
            4px 4px 8px rgba(0, 0, 0, 0.2); */
-        /* filter: drop-shadow(-4px -4px 8px rgba(255, 255, 255, 0.2)) drop-shadow(4px 4px 8px rgba(0, 0, 0, 0.2)); */
       }
-      .block-card-item.last .chain-link {
+      .block-card-item.first .chain-link {
         display: none;
       }
       .block-card-item.hide {
@@ -63,12 +53,11 @@
       }
       .chain-link {
         position: absolute;
-        bottom: 0;
+        top: -30px;
         left: 0;
         z-index: 2;
         height: 60px;
         width: 100%;
-        /* opacity: 0.9; */
         display: flex;
         flex-direction: row;
         justify-content: space-around;
@@ -77,7 +66,7 @@
       .chain-link::after {
         content: " ";
         width: 10px;
-        background: #fff;
+        background: #81c784;
         /* box-shadow: -1px -1px 2px rgba(255, 255, 255, 0.2),
            1px 1px 2px rgba(0, 0, 0, 0.2); */
         border-radius: 5px;
@@ -96,6 +85,9 @@
         width: 100%;
         height: 100%;
         border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
     </style>
   </head>
@@ -115,32 +107,32 @@
         到顶了
       </div>
       <!-- <header>some header content</header> -->
-      <fixed-size-list
+      <fixed-size-virtual-list
         id="l"
-        class="list-1"
         item-size="200"
         item-count="1000000"
         safe-area-inset-top="400"
         safe-area-inset-bottom="100"
         onrenderrangechange="rangeChange(event)"
       >
+        <div id="scroll-ctrl">啊啊啊</div>
         <div class="block-card-item" slot="template">
           <div class="block-content">
             <div class="height">Height: <span name="height"></span></div>
           </div>
           <div class="chain-link"></div>
         </div>
-        <custom-list-item item-size="400">
+        <virtual-list-custom-item item-size="400">
           <div class="my-sliders">
-            <div class="slider-item"></div>
+            <div class="slider-item">This is Banner!</div>
           </div>
-        </custom-list-item>
-        <custom-list-item position-top="812" item-size="200">
+        </virtual-list-custom-item>
+        <virtual-list-custom-item position-top="800" item-size="200">
           <div class="my-sliders">
-            <div class="slider-item"></div>
+            <div class="slider-item">rethink, this is grid.</div>
           </div>
-        </custom-list-item>
-      </fixed-size-list>
+        </virtual-list-custom-item>
+      </fixed-size-virtual-list>
       <!-- <button class="top-button" onclick="gotoTop()">go top</button>
       <footer>some footer content</footer> -->
       <div
@@ -161,19 +153,20 @@
   <script>
     function rangeChange(event) {
       const { entries } = event.detail;
-      for (const { node, index, type } of entries) {
+      for (const { node, index, isIntersecting } of entries) {
         const viewClass = event.target.className;
-        if (type == "create" || type == "visible") {
+        if (isIntersecting) {
           // console.log("%s %c%s", viewClass, "color:green", type, index);
           const height = l.itemCount - index;
           const heightEle = node.querySelector("[name=height]");
           if (heightEle.textContent != height) {
             (heightEle.firstChild || heightEle).textContent = height;
-            node.style.setProperty("z-index", height);
           }
-          node.classList.toggle("last", height === 1n || index === 1n);
-          console.log(index);
-          node.classList.toggle("hide", index === 2n);
+          node.contentNode.classList.toggle(
+            "first",
+            index === 0n || index === 3n
+          );
+          node.contentNode.classList.toggle("hide", index === 2n);
           // node.querySelector("[name=offsetTop]").innerHTML = node.offsetTop;
         } else {
           // console.log("%s %c%s", viewClass, "color:orange", type, index);

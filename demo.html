@@ -1,0 +1,144 @@
+<script type="importmap">
+  {
+    "imports": {
+      "lit-element": "//unpkg.com/lit-element@2.4.0/lit-element.js",
+      "lit-html/": "//unpkg.com/lit-html@1.4.1/"
+    }
+  }
+</script>
+<script type="module" src="./dist/virtual-scroll.es.js"></script>
+<style>
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    background-color: #ddd;
+  }
+  body {
+    box-sizing: border-box;
+    padding: 10px 20px;
+    align-items: center;
+    justify-content: stretch;
+  }
+  scroll-viewport {
+    width: 100%;
+    height: 100%;
+    background-color: #999;
+    position: relative;
+  }
+  .block-card-item {
+    height: 200px;
+    width: 100%;
+    box-sizing: border-box;
+    --card-color: #2196f3;
+    height: 100%;
+    padding: 10px 25px;
+  }
+  .block-card-item [name="height"] {
+    contain: strict;
+  }
+  .block-content {
+    height: 100%;
+    padding: 30px;
+    box-sizing: border-box;
+    background: linear-gradient(180deg, var(--card-color), #fff);
+    border-radius: 20px;
+    /* box-shadow: -4px -4px 8px rgba(255, 255, 255, 0.2),
+           4px 4px 8px rgba(0, 0, 0, 0.2); */
+  }
+  .block-card-item.first .chain-link {
+    display: none;
+  }
+  .block-card-item.hide {
+    display: none;
+  }
+  .chain-link {
+    position: absolute;
+    top: -30px;
+    left: 0;
+    z-index: 2;
+    height: 60px;
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+  }
+  .chain-link::before,
+  .chain-link::after {
+    content: " ";
+    width: 10px;
+    background: #81c784;
+    /* box-shadow: -1px -1px 2px rgba(255, 255, 255, 0.2),
+           1px 1px 2px rgba(0, 0, 0, 0.2); */
+    border-radius: 5px;
+  }
+  .top-button {
+    width: 100%;
+  }
+  .my-sliders {
+    width: 100%;
+    height: 100%;
+    padding: 10px;
+    box-sizing: border-box;
+  }
+  .my-sliders .slider-item {
+    background-color: #e91e63;
+    width: 100%;
+    height: 100%;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+</style>
+<script>
+  function rangeChange(event) {
+    const { entries } = event.detail;
+    for (const { node, index, isIntersecting } of entries) {
+      const viewClass = event.target.className;
+      if (isIntersecting) {
+        const height = l.itemCount - index;
+        const heightEle = node.querySelector("[name=height]");
+        if (heightEle.textContent != height) {
+          (heightEle.firstChild || heightEle).textContent = height;
+        }
+        node.contentNode.classList.toggle(
+          "first",
+          index === 0n || index === 3n
+        );
+        node.contentNode.classList.toggle("hide", index === 2n);
+      }
+    }
+  }
+  function gotoTop() {
+    l.virtualScrollTop = 0;
+  }
+</script>
+<scroll-viewport>
+  <fixed-size-virtual-list
+    id="l"
+    item-size="200"
+    item-count="1000000"
+    safe-area-inset-top="400"
+    safe-area-inset-bottom="100"
+    onrenderrangechange="rangeChange(event)"
+  >
+    <div class="block-card-item" slot="template">
+      <div class="block-content">
+        <div class="height">Height: <span name="height"></span></div>
+      </div>
+      <div class="chain-link"></div>
+    </div>
+    <virtual-list-custom-item item-size="400">
+      <div class="my-sliders">
+        <div class="slider-item">This is Banner!</div>
+      </div>
+    </virtual-list-custom-item>
+    <virtual-list-custom-item position-top="800" item-size="200">
+      <div class="my-sliders">
+        <div class="slider-item">rethink, this is grid.</div>
+      </div>
+    </virtual-list-custom-item>
+  </fixed-size-virtual-list>
+</scroll-viewport>
