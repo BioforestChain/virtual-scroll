@@ -201,3 +201,4 @@
 - [ ] 实现 `pushCount(newCount:bigint)`, `insertCount(newCount:bigint, refIndex = 0n)`
 - [ ] 实现 `scrollToIndex(index:bigint)`
 - [ ] 支持 `scroll-behavior: smooth`
+- [ ] 滚动的平滑衰减应该基于帧时间而不是基于帧数

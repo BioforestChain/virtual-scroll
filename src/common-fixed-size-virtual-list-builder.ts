@@ -47,16 +47,6 @@ export abstract class CommonFixedSizeListBuilder<
         slot[name="template"] {
           display: none;
         }
-
-        ::slotted(*) {
-          position: absolute;
-          top: 0;
-          transform: var(--virtual-transform);
-          display: var(--virtual-display);
-          will-change: transform;
-          --virtual-display: block;
-          width: 100%;
-        }
       `,
     ];
   }
@@ -71,21 +61,11 @@ export abstract class CommonFixedSizeListBuilder<
   constructor() {
     super();
 
-    // const shadowRoot = this.attachShadow({ mode: "open" });
-    // /// 1. style
-    // shadowRoot.appendChild(CommonFixedSizeListBuilder.style.cloneNode(true));
-
-    // /// 2. create content dom
-    // shadowRoot.appendChild((this._fragment = fragment));
-
     /// bind custom events
     this.addEventListener("renderrangechange", (event) => {
       this._onrenderrangechange?.(event as RenderRangeChangeEvent);
     });
     this.__initInTouch();
-
-    /// *. bind global
-    // Reflect.set(self, "l", this);
   }
 
   protected _intouch = false;
