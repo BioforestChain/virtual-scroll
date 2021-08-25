@@ -168,13 +168,15 @@
    - `@slot` - This element has a slot
 2. `<fixed-size-virtual-list-s1>`/`<fixed-size-virtual-list-s2>`
    > virtual scroll list with fixed size.
-   > s1 means has only one scrollbar
-   > s2 means has two scrollbar
+   >
+   > - `s1` means has only one scrollbar to capture two direction scroll.
+   > - `s2` means has two scrollbar for two direction scroll (maybe you will need it).
    - `@slot` - for custom list item
    - `@slot` `template` - for buildable item
-   - `@csspart` `scroll-up` - the scroll up controller
-   - `@csspart` `scroll-up` - the scroll up controller
-   - `@csspart` virtual-list-view- the scroll item containre
+   - `@csspart` `scroll-ctrl` - (s1) the scroll up controller
+   - `@csspart` `scroll-up` - (s2) the scroll up controller
+   - `@csspart` `scroll-down` - (s2) the scroll up controller
+   - `@csspart` `virtual-list-view` - the scroll item container
    - `@fires` `renderrangechange` - when scroll, the item will need render changed
    - `@attr` `{bigint} item-count` -
    - `@attr` `{number} item-size` -
@@ -196,3 +198,6 @@
 - [x] 抽象出 common-fixed-size-virtual-list-builder 以扩展多种不同滚动策略
 - [ ] fixed-size-virtual-list 需要正确区分 create / visible / hidden / destroy 四种状态
 - [ ] create 与 destroy 发生的时候，如果该元素不在页面中，不应该发生滚动
+- [ ] 实现 `pushCount(newCount:bigint)`, `insertCount(newCount:bigint, refIndex = 0n)`
+- [ ] 实现 `scrollToIndex(index:bigint)`
+- [ ] 支持 `scroll-behavior: smooth`
