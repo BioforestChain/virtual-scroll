@@ -2,32 +2,42 @@
 
 [![Published on webcomponents.org](https://img.shields.io/badge/webcomponents.org-published-blue.svg)](https://www.webcomponents.org/element/owner/my-element)
 
+## DEMO
+
+- [example 1](https://bioforestchain.github.io/virtual-scroll/)
+
 ## Usage
+
+**Install Dep**
 
 ```bash
 npm i @bfchain/virtual-scroll --save
 yarn add @bfchain/virtual-scroll
 ```
 
+**moderns web dev**
+
+> For Angular/React/Vue/Preact etc.
+
 ```ts
 import "@bfchain/virtual-scroll";
 ```
 
-## DEMO
+**or include directly**
+
+> For vanillajs
+
+```html
+<script src="./node_modules/@bfchain/virtual-scroll/dist/vitrual-scroll.iife.js"></script>
+```
+
+**then you can use the component in your html**
 
 <!--
 ```html
-<custom-element-demo>
+<custom-element-demo height="640">
   <template>
-    <script type="importmap">
-    {
-        "imports": {
-        "lit-element": "//unpkg.com/lit-element@2.4.0/lit-element.js",
-        "lit-html/": "//unpkg.com/lit-html@1.4.1/"
-        }
-    }
-    </script>
-    <script type="module" src="./dist/virtual-scroll.es.js"></script>
+    <script type="module" src="./iife/virtual-scroll.iife.js"></script>
     <style>
     html,
     body {

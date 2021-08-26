@@ -6,8 +6,7 @@ export default defineConfig({
     target: ["chrome74"],
     lib: {
       entry: "src/index.ts",
-      name: "virtualScroll",
-      formats: ["es", "cjs", "umd"],
+      formats: ["es", "cjs"],
     },
     rollupOptions: {
       external: /^lit-element/,
