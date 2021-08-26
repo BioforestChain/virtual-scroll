@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>Virtual Scroll - WebComponent</title>
+    
+    <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        background-color: #ddd;
+      }
+      body {
+        box-sizing: border-box;
+        padding: 10px 20px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: stretch;
+      }
+      scroll-viewport {
+        flex: 1;
+        width: 100%;
+        height: 100%;
+        background-color: #999;
+        position: relative;
+      }
+      .tool-bar {
+        flex-grow: 0;
+        flex-shrink: 0;
+      }
+      .block-card-item {
+        height: 200px;
+        width: 100%;
+        box-sizing: border-box;
+        --card-color: #2196f3;
+        height: 100%;
+        padding: 10px 25px;
+        transform-origin: top;
+      }
+      .block-card-item [name="height"] {
+        contain: strict;
+      }
+      .block-content {
+        height: 100%;
+        padding: 30px;
+        box-sizing: border-box;
+        background: linear-gradient(180deg, var(--card-color), #fff);
+        border-radius: 20px;
+        /* box-shadow: -4px -4px 8px rgba(255, 255, 255, 0.2),
+           4px 4px 8px rgba(0, 0, 0, 0.2); */
+      }
+      .block-content [name="state"] {
+        white-space: break-spaces;
+        font-size: small;
+      }
+      .block-card-item.first .chain-link {
+        display: none;
+      }
+      .block-card-item.hide {
+        display: none;
+      }
+      .chain-link {
+        position: absolute;
+        top: -30px;
+        left: 0;
+        z-index: 2;
+        height: 60px;
+        width: 100%;
+        display: flex;
+        flex-direction: row;
+        justify-content: space-around;
+      }
+      .chain-link::before,
+      .chain-link::after {
+        content: " ";
+        width: 10px;
+        background: #81c784;
+        /* box-shadow: -1px -1px 2px rgba(255, 255, 255, 0.2),
+           1px 1px 2px rgba(0, 0, 0, 0.2); */
+        border-radius: 5px;
+      }
+      .top-button {
+        width: 100%;
+      }
+      .my-sliders {
+        width: 100%;
+        height: 100%;
+        padding: 10px;
+        box-sizing: border-box;
+      }
+      .my-sliders .slider-item {
+        background-color: #e91e63;
+        width: 100%;
+        height: 100%;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+    </style>
+    <script type="module" crossorigin src="/assets/main.2f541444.js"></script>
+    <link rel="modulepreload" href="/assets/vendor.7f148f7f.js">
+  </head>
+  <body>
+    <scroll-viewport>
+      <!-- <header>some header content</header> -->
+      <fixed-size-virtual-list-s1
+        id="l"
+        item-size="200"
+        item-count="1000000"
+        safe-area-inset-top="400"
+        safe-area-inset-bottom="100"
+        cache-render-bottom="1000"
+        onrenderrangechange="rangeChange(event,this)"
+      >
+        <div class="block-card-item" slot="template">
+          <div class="block-content">
+            <div class="height">Height: <span name="height"></span></div>
+            <div class="state">State: <span name="state"></span></div>
+          </div>
+          <div class="chain-link"></div>
+        </div>
+        <virtual-list-custom-item item-size="400">
+          <div class="my-sliders">
+            <div class="slider-item">This is Banner!</div>
+          </div>
+        </virtual-list-custom-item>
+        <virtual-list-custom-item position-top="800" item-size="200">
+          <div class="my-sliders">
+            <div class="slider-item">rethink, this is grid.</div>
+          </div>
+        </virtual-list-custom-item>
+      </fixed-size-virtual-list-s1>
+    </scroll-viewport>
+    <section class="tool-bar">
+      <button class="button" onclick="insertItem()">insert at top</button>
+      <button class="button" onclick="gotoTop()">go top</button>
+    </section>
+  </body>
+  <script>
+    const movingDuration = 1000;
+    function rangeChange(event) {
+      const { entries, time } = event.detail;
+      for (const { node, index, stateInfoList, isIntersecting } of entries) {
+        const viewClass = event.target.className;
+        if (isIntersecting) {
+          // console.log("%s %c%s", viewClass, "color:green", type, index);
+          const height = l.itemCount - index;
+          const heightEle = node.querySelector("[name=height]");
+          (heightEle.firstChild || heightEle).textContent = height;
+          const stateEle = node.querySelector("[name=state]");
+          (stateEle.firstChild || stateEle).textContent = stateInfoList
+            .map(
+              (stateInfo) =>
+                `${stateInfo.state}-${stateInfo.id}-${stateInfo.endTime.toFixed(
+                  2
+                )}`
+            )
+            .join("\n");
+          {
+            let createScale = 0;
+            let createTime = 0;
+            let movingOffset = 0;
+            let movingTime = 0;
+            for (const stateInfo of stateInfoList) {
+              if (stateInfo.state === "moving") {
+                const diffTime = stateInfo.endTime - time;
+                movingOffset += (diffTime / movingDuration) * l.itemSize;
+                movingTime = Math.max(diffTime, movingTime);
+              } else if (stateInfo.state === "create") {
+                const diffTime = stateInfo.endTime - time;
+                createScale = diffTime / movingDuration;
+                createTime = diffTime;
+              }
+            }
+
+            /**@TODO use replaceable animations */
+            for (const ani of node.contentNode.getAnimations()) {
+              ani.cancel();
+            }
+            const movingAniOptions =
+              movingOffset !== 0 && movingTime > 0
+                ? {
+                    from: -movingOffset, //`translateY(${-movingOffset}px)`,
+                    to: 0, //`translateY(0px)`,
+                    duration: movingTime,
+                  }
+                : undefined;
+            const createAniOptions =
+              createScale !== 0 && createTime > 0
+                ? {
+                    from: 1 - createScale, //`scale(${1 - createScale})`,
+                    to: 1, //`scale(1)`,
+                    duration: createTime,
+                  }
+                : undefined;
+
+            if (movingAniOptions && createAniOptions) {
+              const framekeys = [
+                {
+                  transform: `translateY(${movingAniOptions.from}px) scale(${createAniOptions.from})`,
+                  offset: 0,
+                },
+              ];
+              let aniDuration;
+              if (createAniOptions.duration > movingAniOptions.duration) {
+                aniDuration = createAniOptions.duration;
+                const offset = movingAniOptions.duration / aniDuration;
+                framekeys.push(
+                  {
+                    transform: `translateY(${movingAniOptions.to}px) scale(${
+                      createAniOptions.from +
+                      (createAniOptions.to - createAniOptions.from) * offset
+                    })`,
+                    offset: offset,
+                  },
+                  {
+                    transform: `scale(${createAniOptions.to})`,
+                    offset: 1,
+                  }
+                );
+              } else {
+                aniDuration = movingAniOptions.duration;
+                const offset = createAniOptions.duration / aniDuration;
+                framekeys.push(
+                  {
+                    transform: `translateY(${
+                      movingAniOptions.from +
+                      (movingAniOptions.to - movingAniOptions.from) * offset
+                    }px) scale(${createAniOptions.to})`,
+                    offset: offset,
+                  },
+                  {
+                    transform: `translateY(${movingAniOptions.to}px)`,
+                    offset: 1,
+                  }
+                );
+              }
+              node.contentNode.animate(framekeys, aniDuration);
+            } else if (movingAniOptions) {
+              node.contentNode.animate(
+                [
+                  { transform: `translateY(${movingAniOptions.from}px)` },
+                  { transform: `translateY(${movingAniOptions.to}px)` },
+                ],
+                movingAniOptions.duration
+              );
+            } else if (createAniOptions) {
+              node.contentNode.animate(
+                [
+                  { transform: `scale(${createAniOptions.from})` },
+                  { transform: `scale(${createAniOptions.to})` },
+                ],
+                createAniOptions.duration
+              );
+            }
+            if (l._dev) {
+              console.log(index, "do ani", stateEle.textContent);
+              console.log(movingAniOptions, createAniOptions);
+              for (const ani of node.contentNode.getAnimations()) {
+                console.log(ani.effect.getKeyframes());
+              }
+            }
+          }
+
+          node.contentNode.classList.toggle("first", index === 0n);
+          // node.contentNode.classList.toggle(
+          //   "hide",
+          //   node.contentNode.getAnimations().length === 0 && index === 2n
+          // );
+
+          // node.querySelector("[name=offsetTop]").innerHTML = node.offsetTop;
+        } else {
+          // console.log("%s %c%s", viewClass, "color:orange", type, index);
+        }
+      }
+    }
+    function gotoTop() {
+      l.virtualScrollTop = 0;
+    }
+    function insertItem() {
+      l.itemCountStateManager.insertBefore(1n, 0n, {
+        // state: create
+        duration: movingDuration,
+      });
+    }
+  </script>
+</html>
