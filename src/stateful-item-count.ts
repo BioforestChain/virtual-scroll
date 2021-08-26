@@ -1,4 +1,5 @@
 export type StateRange<S> = {
+  id: number;
   startIndex: bigint;
   endIndex: bigint;
   status: S;
@@ -13,9 +14,17 @@ export type SetStateOptions<S> = {
 export type StateInfo<S> = {
   state: S;
   endTime: number;
+  id: number;
 };
 
 export class StatefulItemCount<S> {
+  /**
+   * defaultState === 0
+   */
+  private _stateIdAcc = 1;
+  get uniqueStateId() {
+    return this._stateIdAcc++;
+  }
   constructor(
     public readonly onItemCountChanged: (itemCount: bigint) => unknown,
     public readonly defaultState: S,
@@ -43,10 +52,18 @@ export class StatefulItemCount<S> {
     const stateInfoList: StateInfo<S>[] = [];
     for (const range of this._stateRangeList) {
       if (range.startIndex <= index && index <= range.endIndex) {
-        stateInfoList.push({ state: range.status, endTime: range.endTime });
+        stateInfoList.push({
+          id: range.id,
+          state: range.status,
+          endTime: range.endTime,
+        });
       }
     }
-    stateInfoList.push({ state: this.defaultState, endTime: Infinity });
+    stateInfoList.push({
+      id: 0,
+      state: this.defaultState,
+      endTime: Infinity,
+    });
     return stateInfoList;
   }
   //#region 标记
@@ -58,6 +75,7 @@ export class StatefulItemCount<S> {
   ) {
     /// 因为是插入元素到末尾，不会对其它顺序产生影响，所以不需要对其它range进行改变
     const statusRange: StateRange<S> = {
+      id: this.uniqueStateId,
       startIndex,
       endIndex,
       status: opts.status || this.operateState,

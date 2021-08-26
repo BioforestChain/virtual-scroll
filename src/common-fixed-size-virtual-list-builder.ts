@@ -5,7 +5,6 @@ import {
   anyToFloat,
   to6eBn,
   bi6e,
-  arrayEqual,
 } from "./helper";
 import type { ScrollViewportElement } from "./scroll-viewport";
 import type { VirtualListCustomItemElement } from "./virtual-list-custom-item";
@@ -26,7 +25,6 @@ export type VisibilityState<
   enter: E;
   leave: L;
 };
-
 /**
  * virtual scroll list with fixed size.
  *
@@ -301,6 +299,24 @@ export abstract class CommonFixedSizeListBuilder<
     collection: Map<bigint, RenderRangeChangeEntry<T, S>>;
     emitter: () => void;
   };
+
+  protected _stateInfoListEqual = <
+    T extends VisibilityStateLeaveInfo<S>[] | VisibilityStateEnterInfo<S>[]
+  >(
+    arr1: T,
+    arr2: T
+  ): boolean => {
+    if (arr1.length !== arr2.length) {
+      return false;
+    }
+    for (let i = 0; i < arr1.length; ++i) {
+      if (arr1[i]!.id !== arr2[i]!.id) {
+        return false;
+      }
+    }
+    return true;
+  };
+
   protected _emitRanderItem(item: RenderRangeChangeEntry<T, S>, time: number) {
     if (!this._rangechange_event) {
       this._rangechange_event = {
@@ -324,7 +340,10 @@ export abstract class CommonFixedSizeListBuilder<
                 return !(
                   preEnrty &&
                   preEnrty.isIntersecting === entry.isIntersecting &&
-                  arrayEqual(preEnrty.stateInfoList, entry.stateInfoList) &&
+                  this._stateInfoListEqual(
+                    preEnrty.stateInfoList,
+                    entry.stateInfoList
+                  ) &&
                   preEnrty.node === entry.node
                 );
               })
@@ -382,8 +401,8 @@ export abstract class CommonFixedSizeListBuilder<
           startTime: now,
         });
 
-      this._renderItems(now, ani);
       this.itemCountStateManager.clearState(now);
+      this._renderItems(now, ani);
 
       ani.reqFrameId = requestAnimationFrame(() => {
         const now = performance.now();
@@ -391,7 +410,7 @@ export abstract class CommonFixedSizeListBuilder<
           this._requestRenderAni(now, true);
         } else {
           this._ani = undefined;
-          this._clearAniState()
+          this._clearAniState();
         }
       });
     } else {
@@ -443,20 +462,20 @@ export abstract class CommonFixedSizeListBuilder<
 
   protected _cacheRenderTop?: number;
   @property({ attribute: "cache-render-top" })
-  public get cacheRenderTop() {
+  public get cacheRenderTop(): number {
     return this._cacheRenderTop ?? this.itemSize / 2;
   }
-  public set cacheRenderTop(value) {
-    this._cacheRenderTop = value;
+  public set cacheRenderTop(value: unknown) {
+    this._cacheRenderTop = anyToFloat(value);
     this._setStyle();
   }
   protected _cacheRenderBottom?: number;
   @property({ attribute: "cache-render-bottom" })
-  public get cacheRenderBottom() {
+  public get cacheRenderBottom(): number {
     return this._cacheRenderBottom ?? this.itemSize / 2;
   }
-  public set cacheRenderBottom(value) {
-    this._cacheRenderBottom = value;
+  public set cacheRenderBottom(value: unknown) {
+    this._cacheRenderBottom = anyToFloat(value);
     this._setStyle();
   }
 
@@ -549,6 +568,7 @@ export abstract class CommonFixedSizeListBuilder<
             stateInfoList: this.itemCountStateManager
               .getStateInfoListByIndex(i)
               .map((stateInfo) => ({
+                id: stateInfo.id,
                 state: stateInfo.state.leave,
                 endTime: stateInfo.endTime,
               })),
@@ -581,6 +601,7 @@ export abstract class CommonFixedSizeListBuilder<
           stateInfoList: this.itemCountStateManager
             .getStateInfoListByIndex(index)
             .map((stateInfo) => ({
+              id: stateInfo.id,
               state: stateInfo.state.enter,
               endTime: stateInfo.endTime,
             })),
@@ -648,6 +669,7 @@ export abstract class CommonFixedSizeListBuilder<
           node: item,
           stateInfoList: [
             {
+              id: this.itemCountStateManager.uniqueStateId,
               state: this.itemCountStateManager.operateState.leave,
               endTime: 0,
             },
@@ -697,6 +719,17 @@ export class ItemPool<T> {
   }
 }
 
+type VisibilityStateEnterInfo<S extends VisibilityState = VisibilityState> = {
+  id: number;
+  state: S["enter"];
+  endTime: number;
+};
+type VisibilityStateLeaveInfo<S extends VisibilityState = VisibilityState> = {
+  id: number;
+  state: S["leave"];
+  endTime: number;
+};
+
 type RenderRangeChangeEntry<
   T extends HTMLElement = HTMLElement,
   S extends VisibilityState = VisibilityState
@@ -704,13 +737,13 @@ type RenderRangeChangeEntry<
   | {
       node: VirtualListDefaultItemElement<T>;
       index: bigint;
-      stateInfoList: { state: S["enter"]; endTime: number }[];
+      stateInfoList: VisibilityStateEnterInfo<S>[];
       isIntersecting: true;
     }
   | {
       node: VirtualListDefaultItemElement<T>;
       index: bigint;
-      stateInfoList: { state: S["leave"]; endTime: number }[];
+      stateInfoList: VisibilityStateLeaveInfo<S>[];
       isIntersecting: false;
     };
 interface RenderRangeChangeDetail<

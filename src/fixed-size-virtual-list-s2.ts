@@ -105,9 +105,7 @@ export class FixedSizeVirtualListS2Element extends CommonFixedSizeListBuilder {
   private _preScrollDiff = 0;
 
   private _preScrollUpTop = 0;
-  private _preScrollUpDiff = 0;
   private _preScrollDownTop = 0;
-  private _preScrollDownDiff = 0;
 
   protected _renderItems(now: number, ani: ScrollAnimationInfo) {
     if (!this.viewPort || !this._templateFactory) {
@@ -125,14 +123,12 @@ export class FixedSizeVirtualListS2Element extends CommonFixedSizeListBuilder {
     let scrollDiffChanged = true;
     if (scrollDownDiff > 0 || (scrollDownDiff < 0 && this._intouch)) {
       scrollDiff = scrollDownDiff;
-      this._preScrollDownDiff = scrollDownDiff;
       /// 重置其它滚动的 scrollTop；因为scroll-snap，所以使用0即可强制触发位置重置
       this._scrollCtrlUp.scrollTop = 0;
       this._preScrollUpTop = this._scrollCtrlUp.scrollTop;
       this.viewPort.scrollTop = 0;
     } else if (scrollUpDiff < 0 || (scrollUpDiff > 0 && this._intouch)) {
       scrollDiff = scrollUpDiff;
-      this._preScrollUpDiff = scrollUpDiff;
       /// 重置其它滚动的 scrollTop；因为scroll-snap，所以使用0即可强制触发位置重置
       this._scrollCtrlDown.scrollTop = 0;
       this._preScrollDownTop = this._scrollCtrlDown.scrollTop;

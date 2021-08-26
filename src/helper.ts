@@ -29,18 +29,3 @@ export const anyToNaturalBigInt = (val: unknown) => {
 export const to6eBn = (num: number) => {
   return BigInt(Math.floor(num * 1e6));
 };
-
-export const arrayEqual = <A1 extends unknown[]>(
-  arr1: A1,
-  arr2: unknown[]
-): arr2 is A1 => {
-  if (arr1.length !== arr2.length) {
-    return false;
-  }
-  for (let i = 0; i < arr1.length; ++i) {
-    if (arr1[i] !== arr2[i]) {
-      return false;
-    }
-  }
-  return true;
-};

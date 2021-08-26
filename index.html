@@ -56,6 +56,10 @@
         /* box-shadow: -4px -4px 8px rgba(255, 255, 255, 0.2),
            4px 4px 8px rgba(0, 0, 0, 0.2); */
       }
+      .block-content [name="state"] {
+        white-space: break-spaces;
+        font-size: small;
+      }
       .block-card-item.first .chain-link {
         display: none;
       }
@@ -150,8 +154,14 @@
           const heightEle = node.querySelector("[name=height]");
           (heightEle.firstChild || heightEle).textContent = height;
           const stateEle = node.querySelector("[name=state]");
-          (stateEle.firstChild || stateEle).textContent =
-            JSON.stringify(stateInfoList);
+          (stateEle.firstChild || stateEle).textContent = stateInfoList
+            .map(
+              (stateInfo) =>
+                `${stateInfo.state}-${stateInfo.id}-${stateInfo.endTime.toFixed(
+                  2
+                )}`
+            )
+            .join("\n");
           {
             let createScale = 0;
             let createTime = 0;
@@ -173,80 +183,92 @@
             for (const ani of node.contentNode.getAnimations()) {
               ani.cancel();
             }
-            let movingAniOptions;
-            if (movingOffset !== 0 && movingTime > 0) {
-              movingAniOptions = {
-                from: `translateY(${-movingOffset}px)`,
-                to: `translateY(0px)`,
-                duration: movingTime,
-              };
-            }
-            let createAniOptions;
-            if (createScale !== 0 && createTime > 0) {
-              createAniOptions = {
-                from: `scale(${1 - createScale})`,
-                to: `scale(1)`,
-                duration: createTime,
-              };
-            }
+            const movingAniOptions =
+              movingOffset !== 0 && movingTime > 0
+                ? {
+                    from: -movingOffset, //`translateY(${-movingOffset}px)`,
+                    to: 0, //`translateY(0px)`,
+                    duration: movingTime,
+                  }
+                : undefined;
+            const createAniOptions =
+              createScale !== 0 && createTime > 0
+                ? {
+                    from: 1 - createScale, //`scale(${1 - createScale})`,
+                    to: 1, //`scale(1)`,
+                    duration: createTime,
+                  }
+                : undefined;
+
             if (movingAniOptions && createAniOptions) {
               const framekeys = [
                 {
-                  transform:
-                    movingAniOptions.from + " " + createAniOptions.from,
+                  transform: `translateY(${movingAniOptions.from}px) scale(${createAniOptions.from})`,
+                  offset: 0,
                 },
               ];
               let aniDuration;
               if (createAniOptions.duration > movingAniOptions.duration) {
                 aniDuration = createAniOptions.duration;
+                const offset = movingAniOptions.duration / aniDuration;
                 framekeys.push(
                   {
-                    transform: movingAniOptions.to,
-                    offset:
-                      movingAniOptions.duration / createAniOptions.duration,
+                    transform: `translateY(${movingAniOptions.to}px) scale(${
+                      createAniOptions.from +
+                      (createAniOptions.to - createAniOptions.from) * offset
+                    })`,
+                    offset: offset,
                   },
                   {
-                    transform: createAniOptions.to,
+                    transform: `scale(${createAniOptions.to})`,
+                    offset: 1,
                   }
                 );
               } else {
                 aniDuration = movingAniOptions.duration;
+                const offset = createAniOptions.duration / aniDuration;
                 framekeys.push(
                   {
-                    transform: createAniOptions.to,
-                    offset:
-                      createAniOptions.duration / movingAniOptions.duration,
+                    transform: `translateY(${
+                      movingAniOptions.from +
+                      (movingAniOptions.to - movingAniOptions.from) * offset
+                    }px) scale(${createAniOptions.to})`,
+                    offset: offset,
                   },
                   {
-                    transform: movingAniOptions.to,
+                    transform: `translateY(${movingAniOptions.to}px)`,
+                    offset: 1,
                   }
                 );
               }
-              console.log(framekeys);
               node.contentNode.animate(framekeys, aniDuration);
             } else if (movingAniOptions) {
               node.contentNode.animate(
                 [
-                  { transform: movingAniOptions.from },
-                  { transform: movingAniOptions.to },
+                  { transform: `translateY(${movingAniOptions.from}px)` },
+                  { transform: `translateY(${movingAniOptions.to}px)` },
                 ],
                 movingAniOptions.duration
               );
             } else if (createAniOptions) {
               node.contentNode.animate(
                 [
-                  { transform: createAniOptions.from },
-                  { transform: createAniOptions.to },
+                  { transform: `scale(${createAniOptions.from})` },
+                  { transform: `scale(${createAniOptions.to})` },
                 ],
                 createAniOptions.duration
               );
             }
+            if (l._dev) {
+              console.log(index, "do ani", stateEle.textContent);
+              console.log(movingAniOptions, createAniOptions);
+              for (const ani of node.contentNode.getAnimations()) {
+                console.log(ani.effect.getKeyframes());
+              }
+            }
           }
 
-          // node.contentNode.classList.toggle(
-          //   "first",
-          //   index === 0n || index === 3n
-          // );
+          node.contentNode.classList.toggle("first", index === 0n);
           // node.contentNode.classList.toggle(
           //   "hide",
           //   node.contentNode.getAnimations().length === 0 && index === 2n
@@ -263,6 +285,7 @@
     }
     function insertItem() {
       l.itemCountStateManager.insertBefore(1n, 0n, {
+        // state: create
         duration: movingDuration,
       });
     }
