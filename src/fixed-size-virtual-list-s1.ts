@@ -147,7 +147,10 @@ export class FixedSizeVirtualListS1Element extends CommonFixedSizeListBuilder {
       scrollDiff = this._preScrollDiff * this._dampingScrollDiff(now, ani);
     }
 
-    this._doScroll(scrollDiff);
+    this._doScroll(scrollDiff, now);
+  }
+  protected _clearAniState() {
+    this._preScrollDiff = 0;
   }
 }
 

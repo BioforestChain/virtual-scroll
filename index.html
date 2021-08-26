@@ -2,7 +2,10 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
     <title>Virtual Scroll - WebComponent</title>
     <script type="module" src="/src/index.ts"></script>
     <style>
@@ -16,14 +19,21 @@
       body {
         box-sizing: border-box;
         padding: 10px 20px;
+        display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: stretch;
       }
       scroll-viewport {
+        flex: 1;
         width: 100%;
         height: 100%;
         background-color: #999;
         position: relative;
+      }
+      .tool-bar {
+        flex-grow: 0;
+        flex-shrink: 0;
       }
       .block-card-item {
         height: 200px;
@@ -32,6 +42,7 @@
         --card-color: #2196f3;
         height: 100%;
         padding: 10px 25px;
+        transform-origin: top;
       }
       .block-card-item [name="height"] {
         contain: strict;
@@ -100,11 +111,13 @@
         item-count="1000000"
         safe-area-inset-top="400"
         safe-area-inset-bottom="100"
+        cache-render-bottom="1000"
         onrenderrangechange="rangeChange(event,this)"
       >
         <div class="block-card-item" slot="template">
           <div class="block-content">
             <div class="height">Height: <span name="height"></span></div>
+            <div class="state">State: <span name="state"></span></div>
           </div>
           <div class="chain-link"></div>
         </div>
@@ -119,27 +132,126 @@
           </div>
         </virtual-list-custom-item>
       </fixed-size-virtual-list-s1>
-      <!-- <button class="top-button" onclick="gotoTop()">go top</button>
-      <footer>some footer content</footer> -->
     </scroll-viewport>
+    <section class="tool-bar">
+      <button class="button" onclick="insertItem()">insert at top</button>
+      <button class="button" onclick="gotoTop()">go top</button>
+    </section>
   </body>
   <script>
+    const movingDuration = 1000;
     function rangeChange(event) {
-      const { entries } = event.detail;
-      for (const { node, index, isIntersecting } of entries) {
+      const { entries, time } = event.detail;
+      for (const { node, index, stateInfoList, isIntersecting } of entries) {
         const viewClass = event.target.className;
         if (isIntersecting) {
           // console.log("%s %c%s", viewClass, "color:green", type, index);
           const height = l.itemCount - index;
           const heightEle = node.querySelector("[name=height]");
-          if (heightEle.textContent != height) {
-            (heightEle.firstChild || heightEle).textContent = height;
+          (heightEle.firstChild || heightEle).textContent = height;
+          const stateEle = node.querySelector("[name=state]");
+          (stateEle.firstChild || stateEle).textContent =
+            JSON.stringify(stateInfoList);
+          {
+            let createScale = 0;
+            let createTime = 0;
+            let movingOffset = 0;
+            let movingTime = 0;
+            for (const stateInfo of stateInfoList) {
+              if (stateInfo.state === "moving") {
+                const diffTime = stateInfo.endTime - time;
+                movingOffset += (diffTime / movingDuration) * l.itemSize;
+                movingTime = Math.max(diffTime, movingTime);
+              } else if (stateInfo.state === "create") {
+                const diffTime = stateInfo.endTime - time;
+                createScale = diffTime / movingDuration;
+                createTime = diffTime;
+              }
+            }
+
+            /**@TODO use replaceable animations */
+            for (const ani of node.contentNode.getAnimations()) {
+              ani.cancel();
+            }
+            let movingAniOptions;
+            if (movingOffset !== 0 && movingTime > 0) {
+              movingAniOptions = {
+                from: `translateY(${-movingOffset}px)`,
+                to: `translateY(0px)`,
+                duration: movingTime,
+              };
+            }
+            let createAniOptions;
+            if (createScale !== 0 && createTime > 0) {
+              createAniOptions = {
+                from: `scale(${1 - createScale})`,
+                to: `scale(1)`,
+                duration: createTime,
+              };
+            }
+            if (movingAniOptions && createAniOptions) {
+              const framekeys = [
+                {
+                  transform:
+                    movingAniOptions.from + " " + createAniOptions.from,
+                },
+              ];
+              let aniDuration;
+              if (createAniOptions.duration > movingAniOptions.duration) {
+                aniDuration = createAniOptions.duration;
+                framekeys.push(
+                  {
+                    transform: movingAniOptions.to,
+                    offset:
+                      movingAniOptions.duration / createAniOptions.duration,
+                  },
+                  {
+                    transform: createAniOptions.to,
+                  }
+                );
+              } else {
+                aniDuration = movingAniOptions.duration;
+                framekeys.push(
+                  {
+                    transform: createAniOptions.to,
+                    offset:
+                      createAniOptions.duration / movingAniOptions.duration,
+                  },
+                  {
+                    transform: movingAniOptions.to,
+                  }
+                );
+              }
+              console.log(framekeys);
+              node.contentNode.animate(framekeys, aniDuration);
+            } else if (movingAniOptions) {
+              node.contentNode.animate(
+                [
+                  { transform: movingAniOptions.from },
+                  { transform: movingAniOptions.to },
+                ],
+                movingAniOptions.duration
+              );
+            } else if (createAniOptions) {
+              node.contentNode.animate(
+                [
+                  { transform: createAniOptions.from },
+                  { transform: createAniOptions.to },
+                ],
+                createAniOptions.duration
+              );
+            }
           }
-          node.contentNode.classList.toggle(
-            "first",
-            index === 0n || index === 3n
-          );
-          node.contentNode.classList.toggle("hide", index === 2n);
+
+          // node.contentNode.classList.toggle(
+          //   "first",
+          //   index === 0n || index === 3n
+          // );
+          // node.contentNode.classList.toggle(
+          //   "hide",
+          //   node.contentNode.getAnimations().length === 0 && index === 2n
+          // );
+
           // node.querySelector("[name=offsetTop]").innerHTML = node.offsetTop;
         } else {
           // console.log("%s %c%s", viewClass, "color:orange", type, index);
@@ -148,6 +260,11 @@
     }
     function gotoTop() {
       l.virtualScrollTop = 0;
+    }
+    function insertItem() {
+      l.itemCountStateManager.insertBefore(1n, 0n, {
+        duration: movingDuration,
+      });
     }
   </script>
 </html>

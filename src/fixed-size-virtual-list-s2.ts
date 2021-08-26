@@ -165,7 +165,7 @@ export class FixedSizeVirtualListS2Element extends CommonFixedSizeListBuilder {
       virtualScrollTop6e,
       MIN_VIRTUAL_SCROLL_TOP_6E,
       MAX_VIRTUAL_SCROLL_TOP_6E,
-    } = this._doScroll(scrollDiff);
+    } = this._doScroll(scrollDiff, now);
 
     this._scrollCtrlUp.classList.toggle(
       "unscroll",
@@ -175,6 +175,9 @@ export class FixedSizeVirtualListS2Element extends CommonFixedSizeListBuilder {
       "unscroll",
       virtualScrollTop6e === MAX_VIRTUAL_SCROLL_TOP_6E
     );
+  }
+  protected _clearAniState() {
+    this._preScrollDiff = 0;
   }
 }
 

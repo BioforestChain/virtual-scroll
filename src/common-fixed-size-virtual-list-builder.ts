@@ -5,6 +5,7 @@ import {
   anyToFloat,
   to6eBn,
   bi6e,
+  arrayEqual,
 } from "./helper";
 import type { ScrollViewportElement } from "./scroll-viewport";
 import type { VirtualListCustomItemElement } from "./virtual-list-custom-item";
@@ -49,6 +50,7 @@ export abstract class CommonFixedSizeListBuilder<
   S extends VisibilityState =
     | VisibilityState<"visible", "hidden">
     | VisibilityState<"create", "destroy">
+    | VisibilityState<"moving", "moving">
 > extends LitElement {
   static get styles() {
     return [
@@ -233,13 +235,14 @@ export abstract class CommonFixedSizeListBuilder<
       }
     }
   }
-  readonly itemCountStateManager = new StatefulItemCount<S>(
+  readonly itemCountStateManager = new StatefulItemCount(
     (value: bigint) => {
       this.setAttribute("item-count", value.toString());
       this._setStyle();
     },
     { enter: "visible", leave: "hidden" } as S,
-    { enter: "create", leave: "destroy" } as S
+    { enter: "create", leave: "destroy" } as S,
+    { enter: "moving", leave: "moving" } as S
   );
 
   private _itemSize = 0;
@@ -293,48 +296,57 @@ export abstract class CommonFixedSizeListBuilder<
     bigint,
     RenderRangeChangeEntry<T, S>
   >;
-  protected _rangechange_event_collection?: Map<
-    bigint,
-    RenderRangeChangeEntry<T, S>
-  >;
-  protected _emitRanderItem(item: RenderRangeChangeEntry<T, S>) {
-    if (!this._rangechange_event_collection) {
-      this._rangechange_event_collection = new Map();
-      const collection = this._rangechange_event_collection;
-      queueMicrotask(() => {
-        if (this._rangechange_event_collection !== collection) {
-          return;
-        }
-        const preCollection = this._pre_rangechange_event_collection;
-        this._pre_rangechange_event_collection =
-          this._rangechange_event_collection;
-        this._rangechange_event_collection = undefined;
+  protected _rangechange_event?: {
+    time: number;
+    collection: Map<bigint, RenderRangeChangeEntry<T, S>>;
+    emitter: () => void;
+  };
+  protected _emitRanderItem(item: RenderRangeChangeEntry<T, S>, time: number) {
+    if (!this._rangechange_event) {
+      this._rangechange_event = {
+        collection: new Map(),
+        time,
+        emitter: () => {
+          if (this._rangechange_event !== rangechange_event) {
+            return;
+          }
+          this._rangechange_event = undefined;
+          const preCollection = this._pre_rangechange_event_collection;
+          this._pre_rangechange_event_collection = collection;
 
-        let entries = [...collection.values()].sort((a, b) =>
-          a.index - b.index > 0n ? 1 : -1
-        );
-        if (preCollection) {
-          entries = entries.filter((entry) => {
-            const preEnrty = preCollection.get(entry.index);
-            return !(
-              preEnrty &&
-              preEnrty.isIntersecting === entry.isIntersecting &&
-              // preEnrty.type === entry.type &&
-              preEnrty.node === entry.node
-            );
-          });
-        }
-        if (entries.length === 0) {
-          return;
-        }
+          const sortedEntries = [...collection.values()].sort((a, b) =>
+            a.index - b.index > 0n ? 1 : -1
+          );
 
-        const info: RenderRangeChangeDetail<T> = {
-          entries,
-        };
-        this._emitRenderRangeChange(info);
-      });
+          const diffedEntries = preCollection
+            ? sortedEntries.filter((entry) => {
+                const preEnrty = preCollection.get(entry.index);
+                return !(
+                  preEnrty &&
+                  preEnrty.isIntersecting === entry.isIntersecting &&
+                  arrayEqual(preEnrty.stateInfoList, entry.stateInfoList) &&
+                  preEnrty.node === entry.node
+                );
+              })
+            : sortedEntries;
+
+          if (diffedEntries.length === 0) {
+            return;
+          }
+
+          const info: RenderRangeChangeDetail<T> = {
+            entries: diffedEntries,
+            time: rangechange_event.time,
+          };
+          this._emitRenderRangeChange(info);
+        },
+      };
+      const rangechange_event = this._rangechange_event;
+      const collection = this._rangechange_event.collection;
+      queueMicrotask(rangechange_event.emitter);
     }
-    this._rangechange_event_collection.set(item.index, item);
+    this._rangechange_event.collection.set(item.index, item);
+    this._rangechange_event.time = time;
   }
 
   protected _emitRenderRangeChange(info: RenderRangeChangeDetail<T>) {
@@ -379,12 +391,16 @@ export abstract class CommonFixedSizeListBuilder<
           this._requestRenderAni(now, true);
         } else {
           this._ani = undefined;
+          this._clearAniState()
         }
       });
     } else {
       this._ani.startTime = now;
     }
   };
+  /**滚动动画结束之后要执行的清理工作 */
+  protected abstract _clearAniState(): unknown;
+
   protected _stretchScrollDuration = (scrollDiff: number) => {
     const scrollScale =
       (1 + (Math.abs(scrollDiff) * 10) / this._ctrlScrollPanelHeight) ** 2;
@@ -468,7 +484,7 @@ export abstract class CommonFixedSizeListBuilder<
     this._safeAreaInsetBottom = anyToFloat(value);
     this._setStyle();
   }
-  protected _doScroll(scrollDiff: number) {
+  protected _doScroll(scrollDiff: number, now: number) {
     const scrollCtrlHeight = this.viewPort!.viewportHeight;
     const virtualListViewHeight =
       scrollCtrlHeight + this.cacheRenderBottom + this.cacheRenderTop;
@@ -526,12 +542,20 @@ export abstract class CommonFixedSizeListBuilder<
     const rms = new Set<VirtualListDefaultItemElement<T>>();
     for (const [i, item] of this._inViewItems) {
       if (i < viewStartIndex || i > viewEndIndex) {
-        this._emitRanderItem({
-          index: i,
-          node: item,
-          type: this.itemCountStateManager.getStateByIndex(i).leave,
-          isIntersecting: false,
-        });
+        this._emitRanderItem(
+          {
+            index: i,
+            node: item,
+            stateInfoList: this.itemCountStateManager
+              .getStateInfoListByIndex(i)
+              .map((stateInfo) => ({
+                state: stateInfo.state.leave,
+                endTime: stateInfo.endTime,
+              })),
+            isIntersecting: false,
+          },
+          now
+        );
         this._inViewItems.delete(i);
         this._pool.push(item);
         rms.add(item);
@@ -548,14 +572,22 @@ export abstract class CommonFixedSizeListBuilder<
         if (rms.delete(node) === false && node.parentElement !== this) {
           this.appendChild(node);
         }
-        /// 触发事件
-        this._emitRanderItem({
+      }
+      /// 触发事件
+      this._emitRanderItem(
+        {
           index,
           node,
-          type: this.itemCountStateManager.getStateByIndex(index).enter,
+          stateInfoList: this.itemCountStateManager
+            .getStateInfoListByIndex(index)
+            .map((stateInfo) => ({
+              state: stateInfo.state.enter,
+              endTime: stateInfo.endTime,
+            })),
           isIntersecting: true,
-        });
-      }
+        },
+        now
+      );
 
       /// 设置偏移量
       node.virtualTransformTop =
@@ -608,13 +640,22 @@ export abstract class CommonFixedSizeListBuilder<
   }
   /**销毁滚动视图 */
   protected _destroyItems() {
+    const now = performance.now();
     for (const [i, item] of this._inViewItems) {
-      this._emitRanderItem({
-        index: i,
-        node: item,
-        type: "hidden",
-        isIntersecting: false,
-      });
+      this._emitRanderItem(
+        {
+          index: i,
+          node: item,
+          stateInfoList: [
+            {
+              state: this.itemCountStateManager.operateState.leave,
+              endTime: 0,
+            },
+          ],
+          isIntersecting: false,
+        },
+        now
+      );
       this._inViewItems.delete(i);
       this._pool.push(item);
       this.removeChild(item);
@@ -637,7 +678,6 @@ export abstract class CommonFixedSizeListBuilder<
       ele.remove();
     }
     this._setStyle();
-    this.requestRenderAni();
   }
 }
 
@@ -664,13 +704,13 @@ type RenderRangeChangeEntry<
   | {
       node: VirtualListDefaultItemElement<T>;
       index: bigint;
-      type: S["enter"];
+      stateInfoList: { state: S["enter"]; endTime: number }[];
       isIntersecting: true;
     }
   | {
       node: VirtualListDefaultItemElement<T>;
       index: bigint;
-      type: S["leave"];
+      stateInfoList: { state: S["leave"]; endTime: number }[];
       isIntersecting: false;
     };
 interface RenderRangeChangeDetail<
@@ -678,6 +718,7 @@ interface RenderRangeChangeDetail<
   S extends VisibilityState = VisibilityState
 > {
   entries: RenderRangeChangeEntry<T, S>[];
+  time: number;
 }
 
 export class RenderRangeChangeEvent<

@@ -10,11 +10,24 @@ export type SetStateOptions<S> = {
   duration?: number;
 };
 
+export type StateInfo<S> = {
+  state: S;
+  endTime: number;
+};
+
 export class StatefulItemCount<S> {
   constructor(
     public readonly onItemCountChanged: (itemCount: bigint) => unknown,
     public readonly defaultState: S,
-    public readonly operateState: S
+    public readonly operateState: S,
+    /**添加元素会导致移动的发生，但这里移动是单向的，因为index:0是锚定，所以只有可能是往更高的index进行移动。
+     * 而删除元素虽然在逻辑上也会发生移动，但与添加不同的是，添加后的元素处于列表中，所以它有权被标记state信息；
+     * 而删除掉的元素没法存储state，所以是瞬发状态，这里统一不标记。
+     *
+     * 如果是删除元素的动画，首先应该标记存在的元素为将要删除，此时元素还在队列中，随着动画的推移，动画结束时，才会正式执行元素删除。
+     * 所以删除元素的动画并不是瞬发，而是有一个过程。
+     */
+    public readonly movementState: S
   ) {}
   private _itemCount = 0n;
   public get itemCount() {
@@ -26,13 +39,15 @@ export class StatefulItemCount<S> {
   }
 
   private _stateRangeList: StateRange<S>[] = [];
-  getStateByIndex(index: bigint) {
+  getStateInfoListByIndex(index: bigint) {
+    const stateInfoList: StateInfo<S>[] = [];
     for (const range of this._stateRangeList) {
       if (range.startIndex <= index && index <= range.endIndex) {
-        return range.status;
+        stateInfoList.push({ state: range.status, endTime: range.endTime });
       }
     }
-    return this.defaultState;
+    stateInfoList.push({ state: this.defaultState, endTime: Infinity });
+    return stateInfoList;
   }
   //#region 标记
 
@@ -53,9 +68,9 @@ export class StatefulItemCount<S> {
   }
 
   clearState(now: number) {
-    this._stateRangeList = this._stateRangeList.filter((range) => {
-      range.endTime <= now;
-    });
+    this._stateRangeList = this._stateRangeList.filter(
+      (range) => range.endTime > now
+    );
   }
 
   //#endregion
@@ -74,9 +89,8 @@ export class StatefulItemCount<S> {
     const endIndex = startIndex + count - 1n;
 
     /// 因为是插入元素到末尾，不会对其它顺序产生影响，所以不需要对其它range进行改变
-    const state = this.setState(startIndex, endIndex, opts);
-    this.itemCount += count;
-    return state;
+    this.setState(startIndex, endIndex, opts);
+    return (this.itemCount += count);
   }
   unshift(count: bigint, opts: SetStateOptions<S> = {}) {
     this._checkCount(count);
@@ -89,9 +103,15 @@ export class StatefulItemCount<S> {
       range.startIndex += count;
       range.endIndex += count;
     }
-    const state = this.setState(startIndex, endIndex, opts);
-    this.itemCount += count;
-    return state;
+    this.setState(startIndex, endIndex, opts);
+    if (this.itemCount !== 0n) {
+      // 将后面的元素进行向后偏移
+      this.setState(endIndex + 1n, this.itemCount + count - 1n, {
+        ...opts,
+        status: this.movementState,
+      });
+    }
+    return (this.itemCount += count);
   }
   insertBefore(
     count: bigint,
@@ -126,9 +146,14 @@ export class StatefulItemCount<S> {
       }
     }
 
-    const state = this.setState(startIndex, endIndex, opts);
-    this.itemCount += count;
-    return state;
+    this.setState(startIndex, endIndex, opts);
+    // 将后面的元素进行向后偏移
+    this.setState(endIndex + 1n, this.itemCount + count - 1n, {
+      ...opts,
+      status: this.movementState,
+    });
+
+    return (this.itemCount += count);
   }
   //#endregion
 
@@ -140,11 +165,8 @@ export class StatefulItemCount<S> {
     /// 全删
     if (count >= this.itemCount) {
       this._stateRangeList.length = 0;
-      this.itemCount = 0n;
-      return;
+      return (this.itemCount = 0n);
     }
-
-    this.itemCount -= count;
 
     /// 因为是删除元素，所以要对所有status进行同样的删除操作
     const lastIndex = this.itemCount - 1n;
@@ -162,6 +184,8 @@ export class StatefulItemCount<S> {
         (range) => !removes.has(range)
       );
     }
+
+    return (this.itemCount -= count);
   }
   shift(count: bigint) {
     this._checkCount(count);
@@ -169,10 +193,8 @@ export class StatefulItemCount<S> {
     /// 全删
     if (count >= this.itemCount) {
       this._stateRangeList.length = 0;
-      this.itemCount = 0n;
-      return;
+      return (this.itemCount = 0n);
     }
-    this.itemCount -= count;
 
     /// 因为是删除元素，所以要对所有status进行同样的删除操作
     const removes = new Set<StateRange<S>>();
@@ -192,6 +214,8 @@ export class StatefulItemCount<S> {
         (range) => !removes.has(range)
       );
     }
+
+    return (this.itemCount -= count);
   }
 
   deleteAfter(count: bigint, refIndex?: bigint) {
@@ -236,6 +260,7 @@ export class StatefulItemCount<S> {
         (range) => !removes.has(range)
       );
     }
+    return (this.itemCount -= count);
   }
   //#endregion
 }
