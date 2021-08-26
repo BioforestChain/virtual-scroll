@@ -21,7 +21,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 4600",
     "publ": "npm publ --access public",
-    "build": "tsc && vite build && vite build -c .\\vite-demo.config.ts",
+    "build": "tsc && vite build && vite build -c .\\vite-demo.config.ts --base=./",
     "vite": "vite"
   },
   "dependencies": {
