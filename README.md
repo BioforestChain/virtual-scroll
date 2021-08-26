@@ -203,6 +203,10 @@ import "@bfchain/virtual-scroll";
    - `@attr` `{bigint} position-top` - the posiction in virtual scroll list
    - `@attr` `{number} item-size` - the item height
 
+## ISSUES
+
+1. because of `scroll-ctrl` behavior base on scroll-snap, but Firefox and WebKit don't behave the same. so in firebox you need use controlbar but no mousewheel.
+
 ## TODO
 
 - [x] fixed-size-virtual-list 重构成 LitElement

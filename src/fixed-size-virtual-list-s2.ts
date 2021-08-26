@@ -33,7 +33,10 @@ export class FixedSizeVirtualListS2Element extends CommonFixedSizeListBuilder {
         :host .scroll-dir {
           height: 100%;
           scroll-snap-type: y mandatory;
+          overflow: auto; /**对于不支持overlay的需要回退到使用auto */
           overflow: overlay;
+          scrollbar-color: var(--controlbar-color) var(--controlbar-bg-color);
+          scrollbar-width: thin;
         }
         :host .scroll-dir.unscroll {
           overflow: hidden;
@@ -44,12 +47,12 @@ export class FixedSizeVirtualListS2Element extends CommonFixedSizeListBuilder {
           top: 0;
         }
         :host .scroll-dir::-webkit-scrollbar {
-          width: 4px;
-          background-color: transparent;
+          width: var(--controlbar-width);
+          background-color: var(--controlbar-bg-color);
         }
         :host .scroll-dir::-webkit-scrollbar-thumb {
-          background-color: rgba(0, 0, 0, 0.1);
-          border-radius: 2px;
+          background-color: var(--controlbar-color);
+          border-radius: calc(var(--controlbar-width) * 0.5);
         }
       `,
       virtualListViewStyle,

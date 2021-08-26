@@ -44,15 +44,20 @@ export class FixedSizeVirtualListS1Element extends CommonFixedSizeListBuilder {
           z-index: 1;
           height: 100%;
           scroll-snap-type: y mandatory;
+          overflow: auto; /**对于不支持overlay的需要回退到使用auto */
           overflow: overlay;
+          scrollbar-color: var(--controlbar-color) var(--controlbar-bg-color);
+          scrollbar-width: thin;
+
+          scroll-behavior: smooth;
         }
         :host > #scroll-ctrl::-webkit-scrollbar {
-          width: 4px;
-          background-color: transparent;
+          width: var(--controlbar-width);
+          background-color: var(--controlbar-bg-color);
         }
         :host > #scroll-ctrl::-webkit-scrollbar-thumb {
-          background-color: rgba(0, 0, 0, 0.1);
-          border-radius: 2px;
+          background-color: var(--controlbar-color);
+          border-radius: calc(var(--controlbar-width) * 0.5);
         }
         :host > #scroll-ctrl .top,
         :host > #scroll-ctrl .bottom {
@@ -63,7 +68,8 @@ export class FixedSizeVirtualListS1Element extends CommonFixedSizeListBuilder {
         }
         :host > #scroll-ctrl .center {
           scroll-snap-align: center;
-          height: 0;
+          /* height: 0; */
+          height: var(--viewport-height);
         }
       `,
       virtualListViewStyle,
@@ -103,11 +109,11 @@ export class FixedSizeVirtualListS1Element extends CommonFixedSizeListBuilder {
     if (!this.viewPort || !this._templateFactory) {
       return;
     }
-    const scrollHeight = this._ctrlScrollPanelHeight * 2;
-    const scrollCtrlHeight = this.viewPort.viewportHeight;
+    // const scrollCtrlHeight = this.viewPort.viewportHeight;
+    // const scrollHeight = this._ctrlScrollPanelHeight * 2 + scrollCtrlHeight;
 
     const scrollTop = fixedNum(this._scrollCtrl.scrollTop);
-    const _centerScrollTop = fixedNum((scrollHeight - scrollCtrlHeight) / 2);
+    const _centerScrollTop = this._ctrlScrollPanelHeight; //fixedNum((scrollHeight - scrollCtrlHeight) / 2);
     const preScrollTop =
       this._preScrollTop === -1 ? _centerScrollTop : this._preScrollTop;
     this._preScrollTop = scrollTop;

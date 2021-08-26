@@ -58,8 +58,10 @@ export abstract class CommonFixedSizeListBuilder<
           height: var(--viewport-height);
           overflow: hidden;
           position: relative;
-          scroll-snap-align: start;
-          scroll-snap-stop: always;
+
+          --controlbar-color: rgba(0, 0, 0, 0.1);
+          --controlbar-bg-color: transparent;
+          --controlbar-width: 4px;
         }
 
         slot[name="template"] {
