@@ -55,13 +55,31 @@ export abstract class CommonFixedSizeListBuilder<
       css`
         :host {
           display: block;
-          height: var(--viewport-height);
+          width: var(--viewport-width, 100%);
+          height: var(--viewport-height, 100%);
           overflow: hidden;
           position: relative;
 
           --controlbar-color: rgba(0, 0, 0, 0.1);
           --controlbar-bg-color: transparent;
           --controlbar-width: 4px;
+        }
+        :host::after {
+          content: "context error";
+          text-transform: uppercase;
+          width: 100%;
+          height: 100%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: rgba(255, 255, 255, 0.7);
+          font-size: 16px;
+          position: absolute;
+          backdrop-filter: blur(1em) brightness(0.3);
+          z-index: 10;
+        }
+        :host-context(scroll-viewport)::after {
+          content: none;
         }
 
         slot[name="template"] {
