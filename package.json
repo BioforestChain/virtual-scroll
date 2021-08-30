@@ -1,6 +1,6 @@
 {
   "name": "@bfchain/virtual-scroll",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "main": "./dist/virtual-scroll.iife.js",
   "exports": {
     ".": {

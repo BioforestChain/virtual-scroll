@@ -513,7 +513,7 @@ export abstract class CommonFixedSizeListBuilder<
     this._setStyle();
   }
   private _safeAreaInsetBottom = 0;
-  @property({ attribute: "safe-area-inset-bttom" })
+  @property({ attribute: "safe-area-inset-bottom" })
   public get safeAreaInsetBottom() {
     return this._safeAreaInsetBottom;
   }
@@ -737,18 +737,22 @@ export class ItemPool<T> {
   }
 }
 
-type VisibilityStateEnterInfo<S extends VisibilityState = VisibilityState> = {
+export type VisibilityStateEnterInfo<
+  S extends VisibilityState = VisibilityState
+> = {
   id: number;
   state: S["enter"];
   endTime: number;
 };
-type VisibilityStateLeaveInfo<S extends VisibilityState = VisibilityState> = {
+export type VisibilityStateLeaveInfo<
+  S extends VisibilityState = VisibilityState
+> = {
   id: number;
   state: S["leave"];
   endTime: number;
 };
 
-type RenderRangeChangeEntry<
+export type RenderRangeChangeEntry<
   T extends HTMLElement = HTMLElement,
   S extends VisibilityState = VisibilityState
 > =
@@ -764,7 +768,7 @@ type RenderRangeChangeEntry<
       stateInfoList: VisibilityStateLeaveInfo<S>[];
       isIntersecting: false;
     };
-interface RenderRangeChangeDetail<
+export interface RenderRangeChangeDetail<
   T extends HTMLElement = HTMLElement,
   S extends VisibilityState = VisibilityState
 > {
