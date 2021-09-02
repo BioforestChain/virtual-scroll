@@ -144,7 +144,8 @@ export class FixedSizeVirtualListS2Element extends CommonFixedSizeListBuilder {
     }
     /// 阻尼动画缓动
     else {
-      scrollDiff = this._preScrollDiff * this._dampingScrollDiff(now, ani);
+      scrollDiff =
+        this._preScrollDiff * this._dampingScrollDiff(now, ani).forward;
     }
 
     this._dev &&
@@ -171,6 +172,8 @@ export class FixedSizeVirtualListS2Element extends CommonFixedSizeListBuilder {
       "unscroll",
       virtualScrollTop6e === MAX_VIRTUAL_SCROLL_TOP_6E
     );
+
+    this._emitRenderRangeChange();
   }
   protected _clearAniState() {
     this._preScrollDiff = 0;

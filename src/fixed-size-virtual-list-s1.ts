@@ -144,10 +144,12 @@ export class FixedSizeVirtualListS1Element extends CommonFixedSizeListBuilder {
     }
     /// 阻尼动画缓动
     else {
-      scrollDiff = this._preScrollDiff * this._dampingScrollDiff(now, ani);
+      scrollDiff =
+        this._preScrollDiff * this._dampingScrollDiff(now, ani).forward;
     }
 
     this._doScroll(scrollDiff, now);
+    this._emitRenderRangeChange();
   }
   protected _clearAniState() {
     this._preScrollDiff = 0;

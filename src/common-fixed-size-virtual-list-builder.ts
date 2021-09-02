@@ -18,6 +18,10 @@ export type ScrollAnimationInfo = {
   aniDuration: number;
 };
 
+export type ScrollTopOptions = {
+  duration?: number;
+};
+
 export type VisibilityState<
   E extends string = string,
   L extends string = string
@@ -315,7 +319,7 @@ export abstract class CommonFixedSizeListBuilder<
   protected _rangechange_event?: {
     time: number;
     collection: Map<bigint, RenderRangeChangeEntry<T, S>>;
-    emitter: () => void;
+    emitter: () => RenderRangeChangeDetail<T> | undefined;
   };
 
   protected _stateInfoListEqual = <
@@ -335,7 +339,11 @@ export abstract class CommonFixedSizeListBuilder<
     return true;
   };
 
-  protected _emitRanderItem(item: RenderRangeChangeEntry<T, S>, time: number) {
+  /**收集要触发的事件 */
+  protected _collectionRanderItem(
+    item: RenderRangeChangeEntry<T, S>,
+    time: number
+  ) {
     if (!this._rangechange_event) {
       this._rangechange_event = {
         collection: new Map(),
@@ -375,7 +383,7 @@ export abstract class CommonFixedSizeListBuilder<
             entries: diffedEntries,
             time: rangechange_event.time,
           };
-          this._emitRenderRangeChange(info);
+          return info;
         },
       };
       const rangechange_event = this._rangechange_event;
@@ -386,7 +394,16 @@ export abstract class CommonFixedSizeListBuilder<
     this._rangechange_event.time = time;
   }
 
-  protected _emitRenderRangeChange(info: RenderRangeChangeDetail<T>) {
+  protected _emitRenderRangeChange() {
+    if (!this._rangechange_event) {
+      return;
+    }
+    const rangechange_event = this._rangechange_event;
+    const info = rangechange_event.emitter();
+    if (!info) {
+      return;
+    }
+
     const event = new RenderRangeChangeEvent("renderrangechange", {
       detail: info,
       cancelable: true,
@@ -420,6 +437,7 @@ export abstract class CommonFixedSizeListBuilder<
         });
 
       this.itemCountStateManager.clearState(now);
+      console.log("_renderItems", this.virtualScrollTop,this.itemCount);
       this._renderItems(now, ani);
 
       ani.reqFrameId = requestAnimationFrame(() => {
@@ -446,12 +464,13 @@ export abstract class CommonFixedSizeListBuilder<
   protected _dampingScrollDiff = (now: number, ani: ScrollAnimationInfo) => {
     const progress = (now - ani.startTime) / ani.aniDuration;
     if (progress <= 0) {
-      return 1;
+      return { progress: 0, forward: 1, backward: 0 };
     }
     if (progress >= 1) {
-      return 0;
+      return { progress: 1, forward: 0, backward: 1 };
     }
-    return 1 - this._dampingTimingFunction(progress);
+    const backward = this._dampingTimingFunction(progress);
+    return { progress, forward: 1 - backward, backward: 1 };
   };
   protected _dampingTimingFunction = function easeOutCirc(x: number): number {
     return Math.sqrt(1 - Math.pow(x - 1, 2));
@@ -470,12 +489,51 @@ export abstract class CommonFixedSizeListBuilder<
     } else {
       this.virtualScrollTop6e = v * bi6e;
     }
-    this.refresh();
+    this.requestRenderAni();
   }
   protected SAFE_RENDER_TOP_6E = 0n;
   protected MAX_VIRTUAL_SCROLL_HEIGHT_6E = 0n;
   get virtualScrollHeight() {
     return this.MAX_VIRTUAL_SCROLL_HEIGHT_6E / bi6e;
+  }
+
+  virtualScrollTo(top: unknown, opts: ScrollTopOptions = {}) {
+    const virtualScrollTop6e = to6eBn(anyToFloat(top));
+    const fromScrollTop6e = this.virtualScrollTop6e;
+    const toScrollTop6e = virtualScrollTop6e;
+    const diffScrollTop6e = fromScrollTop6e - toScrollTop6e;
+    const duration =
+      opts.duration ??
+      Math.min(
+        Math.max(0, Math.log2(Math.abs(Number(-diffScrollTop6e / bi6e)))),
+        50
+      ) * 50;
+
+    if (duration === 0) {
+      this.virtualScrollTop6e = virtualScrollTop6e;
+      this.requestRenderAni();
+      return;
+    }
+    const ani: ScrollAnimationInfo = {
+      reqFrameId: 0,
+      startTime: performance.now(),
+      aniDuration: duration,
+    };
+    const doAni = () => {
+      const { progress, forward } = this._dampingScrollDiff(
+        performance.now(),
+        ani
+      );
+
+      const virtualDiffScrollTop6e = (diffScrollTop6e * to6eBn(forward)) / bi6e;
+      this.virtualScrollTop6e = virtualDiffScrollTop6e;
+      this.requestRenderAni();
+      if (progress === 1) {
+        return;
+      }
+      ani.reqFrameId = requestAnimationFrame(doAni);
+    };
+    doAni();
   }
 
   protected _cacheRenderTop?: number;
@@ -579,7 +637,7 @@ export abstract class CommonFixedSizeListBuilder<
     const rms = new Set<VirtualListDefaultItemElement<T>>();
     for (const [i, item] of this._inViewItems) {
       if (i < viewStartIndex || i > viewEndIndex) {
-        this._emitRanderItem(
+        this._collectionRanderItem(
           {
             index: i,
             node: item,
@@ -612,7 +670,7 @@ export abstract class CommonFixedSizeListBuilder<
         }
       }
       /// 触发事件
-      this._emitRanderItem(
+      this._collectionRanderItem(
         {
           index,
           node,
@@ -681,7 +739,7 @@ export abstract class CommonFixedSizeListBuilder<
   protected _destroyItems() {
     const now = performance.now();
     for (const [i, item] of this._inViewItems) {
-      this._emitRanderItem(
+      this._collectionRanderItem(
         {
           index: i,
           node: item,
