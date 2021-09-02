@@ -2,12 +2,12 @@ export type StateRange<S> = {
   id: number;
   startIndex: bigint;
   endIndex: bigint;
-  status: S;
+  state: S;
   endTime: number;
 };
 
 export type SetStateOptions<S> = {
-  status?: S;
+  state?: S;
   duration?: number;
 };
 
@@ -54,7 +54,7 @@ export class StatefulItemCount<S> {
       if (range.startIndex <= index && index <= range.endIndex) {
         stateInfoList.push({
           id: range.id,
-          state: range.status,
+          state: range.state,
           endTime: range.endTime,
         });
       }
@@ -74,15 +74,15 @@ export class StatefulItemCount<S> {
     opts: SetStateOptions<S> = {}
   ) {
     /// 因为是插入元素到末尾，不会对其它顺序产生影响，所以不需要对其它range进行改变
-    const statusRange: StateRange<S> = {
+    const stateRange: StateRange<S> = {
       id: this.uniqueStateId,
       startIndex,
       endIndex,
-      status: opts.status || this.operateState,
+      state: opts.state || this.operateState,
       endTime: opts.duration ? performance.now() + opts.duration : 0,
     };
-    this._stateRangeList.unshift(statusRange);
-    return statusRange;
+    this._stateRangeList.unshift(stateRange);
+    return stateRange;
   }
 
   clearState(now: number) {
@@ -126,7 +126,7 @@ export class StatefulItemCount<S> {
       // 将后面的元素进行向后偏移
       this.setState(endIndex + 1n, this.itemCount + count - 1n, {
         ...opts,
-        status: this.movementState,
+        state: this.movementState,
       });
     }
     return (this.itemCount += count);
@@ -151,7 +151,7 @@ export class StatefulItemCount<S> {
       return this.unshift(endIndex + 1n, opts);
     }
 
-    /// 因为是插入元素到队列中，所以要对所有status进行同样的删除操作
+    /// 因为是插入元素到队列中，所以要对所有state进行同样的删除操作
     for (const range of this._stateRangeList) {
       /// 该范围被完全往后推
       if (range.startIndex >= refIndex) {
@@ -168,7 +168,7 @@ export class StatefulItemCount<S> {
     // 将后面的元素进行向后偏移
     this.setState(endIndex + 1n, this.itemCount + count - 1n, {
       ...opts,
-      status: this.movementState,
+      state: this.movementState,
     });
 
     return (this.itemCount += count);
@@ -186,7 +186,7 @@ export class StatefulItemCount<S> {
       return (this.itemCount = 0n);
     }
 
-    /// 因为是删除元素，所以要对所有status进行同样的删除操作
+    /// 因为是删除元素，所以要对所有state进行同样的删除操作
     const lastIndex = this.itemCount - 1n;
     const removes = new Set<StateRange<S>>();
     for (const range of this._stateRangeList) {
@@ -214,7 +214,7 @@ export class StatefulItemCount<S> {
       return (this.itemCount = 0n);
     }
 
-    /// 因为是删除元素，所以要对所有status进行同样的删除操作
+    /// 因为是删除元素，所以要对所有state进行同样的删除操作
     const removes = new Set<StateRange<S>>();
     for (const range of this._stateRangeList) {
       range.endIndex -= count;
@@ -254,7 +254,7 @@ export class StatefulItemCount<S> {
       return this.pop(deletableCount);
     }
 
-    /// 因为是删除元素，所以要对所有status进行同样的删除操作
+    /// 因为是删除元素，所以要对所有state进行同样的删除操作
     const removes = new Set<StateRange<S>>();
     for (const range of this._stateRangeList) {
       if (range.endIndex > refIndex) {
