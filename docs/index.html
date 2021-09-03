@@ -105,7 +105,7 @@
         justify-content: center;
       }
     </style>
-    <script type="module" crossorigin src="./assets/main.a01422b8.js"></script>
+    <script type="module" crossorigin src="./assets/main.34db3522.js"></script>
     <link rel="modulepreload" href="./assets/vendor.7f148f7f.js">
   </head>
   <body>
@@ -140,13 +140,17 @@
       </fixed-size-virtual-list-s1>
     </scroll-viewport>
     <section class="tool-bar">
+      <button class="button" onclick="insertAndScroll()">
+        insert & scroll
+      </button>
       <button class="button" onclick="insertItem()">insert at top</button>
       <button class="button" onclick="gotoTop()">go top</button>
     </section>
   </body>
   <script>
-    const movingDuration = 1000;
+    const movingDuration = 200;
     function rangeChange(event) {
+      console.log("rangeChangeddd", event);
       const { entries, time } = event.detail;
       for (const { node, index, stateInfoList, isIntersecting } of entries) {
         const viewClass = event.target.className;
@@ -283,13 +287,38 @@
       }
     }
     function gotoTop() {
-      l.virtualScrollTop = 0;
+      l.virtualScrollTo(0);
     }
     function insertItem() {
       l.itemCountStateManager.insertBefore(1n, 0n, {
         // state: create
         duration: movingDuration,
       });
+    }
+    function insertAndScroll() {
+      const count = 1; // (5 * Math.random()) | 0;
+      if (count > 0) {
+        l.itemCountStateManager.insertBefore(BigInt(count), 0n, {
+          // duration: movingDuration,
+          state: "moving",
+        });
+      }
+      let need_ani = l.virtualScrollTop <= l.itemSize / 2;
+      l.itemCountStateManager.insertBefore(1n, 0n, {
+        duration: need_ani ? movingDuration : 0,
+      });
+      /// 在范围内，启动动画
+      if (need_ani) {
+        l.virtualScrollTop += BigInt(l.itemSize * count);
+        l.virtualScrollTo(0n, {
+          duration: movingDuration,
+        });
+        return;
+      } else {
+        /// 在范围外，静止不动
+        console.log(BigInt(l.itemSize * (count + 1)), count + 1);
+        l.virtualScrollTop += BigInt(l.itemSize * (count + 1));
+      }
     }
   </script>
 </html>
