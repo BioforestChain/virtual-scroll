@@ -149,7 +149,6 @@ export class FixedSizeVirtualListS1Element extends CommonFixedSizeListBuilder {
     }
 
     this._doScroll(scrollDiff, now);
-    this._emitRenderRangeChange();
   }
   protected _clearAniState() {
     this._preScrollDiff = 0;

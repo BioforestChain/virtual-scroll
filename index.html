@@ -115,7 +115,6 @@
         item-count="1000000"
         safe-area-inset-top="400"
         safe-area-inset-bottom="100"
-        cache-render-bottom="1000"
         onrenderrangechange="rangeChange(event,this)"
       >
         <div class="block-card-item" slot="template">
@@ -148,7 +147,6 @@
   <script>
     const movingDuration = 200;
     function rangeChange(event) {
-      console.log("rangeChangeddd", event);
       const { entries, time } = event.detail;
       for (const { node, index, stateInfoList, isIntersecting } of entries) {
         const viewClass = event.target.className;
@@ -294,26 +292,26 @@
       });
     }
     function insertAndScroll() {
-      const count = 1; // (5 * Math.random()) | 0;
+      const count = (5 * Math.random()) | 0;
       if (count > 0) {
         l.itemCountStateManager.insertBefore(BigInt(count), 0n, {
-          // duration: movingDuration,
           state: "moving",
         });
       }
-      let need_ani = l.virtualScrollTop <= l.itemSize / 2;
-      l.itemCountStateManager.insertBefore(1n, 0n, {
-        duration: need_ani ? movingDuration : 0,
-      });
-      /// 在范围内，启动动画
+      let need_ani = l.virtualScrollTop <= l.itemSize * 2.5;
+
+      /// 新区快在视野范围内，不进行滚动，让区块自然下落
       if (need_ani) {
-        l.virtualScrollTop += BigInt(l.itemSize * count);
-        l.virtualScrollTo(0n, {
+        l.itemCountStateManager.insertBefore(1n, 0n, {
           duration: movingDuration,
         });
         return;
-      } else {
-        /// 在范围外，静止不动
+      }
+      /// 新区快在视野范围外，整个链保持静止不动，避免无意义的画面抖动
+      else {
+        l.itemCountStateManager.insertBefore(1n, 0n, {
+          duration: 0,
+        });
         console.log(BigInt(l.itemSize * (count + 1)), count + 1);
         l.virtualScrollTop += BigInt(l.itemSize * (count + 1));
       }

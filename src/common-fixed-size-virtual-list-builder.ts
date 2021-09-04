@@ -437,11 +437,10 @@ export abstract class CommonFixedSizeListBuilder<
         });
 
       this.itemCountStateManager.clearState(now);
-      console.log("_renderItems", this.virtualScrollTop,this.itemCount);
-      this._renderItems(now, ani);
 
       ani.reqFrameId = requestAnimationFrame(() => {
         const now = performance.now();
+        this._renderItems(now, ani);
         if (ani.startTime + ani.aniDuration > now) {
           this._requestRenderAni(now, true);
         } else {
@@ -729,6 +728,7 @@ export abstract class CommonFixedSizeListBuilder<
       // console.log(customScrollEle);
     }
 
+    this._emitRenderRangeChange();
     return {
       virtualScrollTop6e,
       MIN_VIRTUAL_SCROLL_TOP_6E,

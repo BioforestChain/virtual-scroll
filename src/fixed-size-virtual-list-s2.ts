@@ -172,8 +172,6 @@ export class FixedSizeVirtualListS2Element extends CommonFixedSizeListBuilder {
       "unscroll",
       virtualScrollTop6e === MAX_VIRTUAL_SCROLL_TOP_6E
     );
-
-    this._emitRenderRangeChange();
   }
   protected _clearAniState() {
     this._preScrollDiff = 0;
