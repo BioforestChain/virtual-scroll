@@ -394,7 +394,7 @@ export abstract class CommonFixedSizeListBuilder<
     this._rangechange_event.time = time;
   }
 
-  protected _emitRenderRangeChange() {
+  protected async _emitRenderRangeChange() {
     if (!this._rangechange_event) {
       return;
     }
@@ -403,6 +403,7 @@ export abstract class CommonFixedSizeListBuilder<
     if (!info) {
       return;
     }
+    await this.updateComplete;
 
     const event = new RenderRangeChangeEvent("renderrangechange", {
       detail: info,
