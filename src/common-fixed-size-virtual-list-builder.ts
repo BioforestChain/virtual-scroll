@@ -394,7 +394,8 @@ export abstract class CommonFixedSizeListBuilder<
     this._rangechange_event.time = time;
   }
 
-  protected async _emitRenderRangeChange() {
+  private _preCompletedUpdate?: Promise<unknown>;
+  protected _emitRenderRangeChange() {
     if (!this._rangechange_event) {
       return;
     }
@@ -403,8 +404,20 @@ export abstract class CommonFixedSizeListBuilder<
     if (!info) {
       return;
     }
-    await this.updateComplete;
+    const { updateComplete } = this;
+    if (this._preCompletedUpdate !== updateComplete) {
+      updateComplete.then(() => {
+        this._preCompletedUpdate = updateComplete;
+        this.__emitRenderRangeChange(info);
+      });
+    } else {
+      this.__emitRenderRangeChange(info);
+    }
+  }
 
+  private __emitRenderRangeChange(
+    info: RenderRangeChangeDetail<T, VisibilityState>
+  ) {
     const event = new RenderRangeChangeEvent("renderrangechange", {
       detail: info,
       cancelable: true,
