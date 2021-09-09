@@ -11,7 +11,7 @@ export default defineConfig({
       formats: ["iife"],
     },
     rollupOptions: {
-      plugins: [minifyHTML.default()],
+      plugins: [minifyHTML],
     },
     emptyOutDir: false,
   },

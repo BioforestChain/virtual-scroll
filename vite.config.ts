@@ -11,7 +11,7 @@ export default defineConfig({
     },
     rollupOptions: {
       external: /^lit-element/,
-      plugins: [minifyHTML.default()],
+      plugins: [minifyHTML],
     },
   },
   server: {

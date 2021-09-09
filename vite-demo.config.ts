@@ -6,6 +6,7 @@ export default defineConfig({
   build: {
     target: ["chrome74"],
     rollupOptions: {
+      external: [resolve(__dirname, "main.ts")],
       input: {
         main: resolve(__dirname, "index.html"),
       },
