@@ -10,7 +10,7 @@ import type { ScrollViewportElement } from "./scroll-viewport";
 import type { VirtualListCustomItemElement } from "./virtual-list-custom-item";
 import { css, LitElement, property, TemplateResult } from "lit-element";
 import { VirtualListDefaultItemElement } from "./virtual-list-default-item";
-import { StatefulItemCount } from "./stateful-item-count";
+import { StatefulItemCount, StateInfo } from "./stateful-item-count";
 
 export type ScrollAnimationInfo = {
   reqFrameId: number;
@@ -22,13 +22,15 @@ export type ScrollTopOptions = {
   duration?: number;
 };
 
-export type VisibilityState<
-  E extends string = string,
-  L extends string = string
-> = {
+export type CountState<E = unknown, L = unknown> = {
   enter: E;
   leave: L;
 };
+
+export type DefaultCountState =
+  | CountState<"visible", "hidden">
+  | CountState<"create", "destroy">
+  | CountState<"moving", "moving">;
 /**
  * virtual scroll list with fixed size.
  *
@@ -49,10 +51,7 @@ export type VisibilityState<
  */
 export abstract class CommonFixedSizeListBuilder<
   T extends HTMLElement = HTMLElement,
-  S extends VisibilityState =
-    | VisibilityState<"visible", "hidden">
-    | VisibilityState<"create", "destroy">
-    | VisibilityState<"moving", "moving">
+  S extends CountState = DefaultCountState
 > extends LitElement {
   static get styles() {
     return [
@@ -99,7 +98,7 @@ export abstract class CommonFixedSizeListBuilder<
     return res;
   }
 
-  protected _dev = false;
+  _debug_ = false;
   constructor() {
     super();
 
@@ -116,7 +115,7 @@ export abstract class CommonFixedSizeListBuilder<
       this.addEventListener(
         en,
         () => {
-          this._dev && console.log(en);
+          this._debug_ && console.log(en);
           this._intouch = true;
         },
         { passive: true }
@@ -126,7 +125,7 @@ export abstract class CommonFixedSizeListBuilder<
       this.addEventListener(
         en,
         () => {
-          this._dev && console.log(en);
+          this._debug_ && console.log(en);
           this._intouch = false;
         },
         { passive: true }
@@ -178,10 +177,13 @@ export abstract class CommonFixedSizeListBuilder<
   public set viewPort(value: ScrollViewportElement | null) {
     const oldViewPort = this._viewPort;
     if (oldViewPort) {
-      oldViewPort.removeEventListener("viewportreisze", this.requestRenderAni);
+      oldViewPort.removeEventListener(
+        "viewportreisze",
+        this._requestRenderAni0
+      );
     }
     if ((this._viewPort = value)) {
-      value.addEventListener("viewportreisze", this.requestRenderAni);
+      value.addEventListener("viewportreisze", this._requestRenderAni0);
       this.requestRenderAni();
     } else {
       this._destroyItems();
@@ -242,11 +244,11 @@ export abstract class CommonFixedSizeListBuilder<
   }
   @property({ attribute: "item-count" })
   public get itemCount(): bigint {
-    return this.itemCountStateManager.itemCount;
+    return this._itemCountStateManager.itemCount;
   }
   public set itemCount(value: unknown) {
     const newVal = anyToNaturalBigInt(value);
-    const state = this.itemCountStateManager;
+    const state = this._itemCountStateManager;
     if (newVal !== state.itemCount) {
       if (newVal > state.itemCount) {
         state.push(newVal - state.itemCount);
@@ -255,7 +257,7 @@ export abstract class CommonFixedSizeListBuilder<
       }
     }
   }
-  readonly itemCountStateManager = new StatefulItemCount(
+  private _itemCountStateManager = new StatefulItemCount(
     (value: bigint) => {
       this.setAttribute("item-count", value.toString());
       this._setStyle();
@@ -264,6 +266,25 @@ export abstract class CommonFixedSizeListBuilder<
     { enter: "create", leave: "destroy" } as S,
     { enter: "moving", leave: "moving" } as S
   );
+  get itemCountStateManager() {
+    return this._itemCountStateManager;
+  }
+
+  static customItemCountStateManager<
+    ES extends CountState,
+    ELE extends HTMLElement
+    // VL extends CommonFixedSizeListBuilder
+  >(
+    vl: CommonFixedSizeListBuilder<ELE>,
+    customStateInfoGetter?: (index: bigint) => StateInfo<ES>
+  ) {
+    // type ELE = VL extends CommonFixedSizeListBuilder<infer ELE> ? ELE : never;
+    type NEW_STATE = DefaultCountState | ES;
+    const newVL = vl as unknown as CommonFixedSizeListBuilder<ELE, NEW_STATE>;
+    const oldItemCountStateManager = newVL._itemCountStateManager;
+    oldItemCountStateManager._customStateInfoGetter = customStateInfoGetter;
+    return newVL;
+  }
 
   private _itemSize = 0;
   @property({ attribute: "item-size" })
@@ -323,7 +344,7 @@ export abstract class CommonFixedSizeListBuilder<
   };
 
   protected _stateInfoListEqual = <
-    T extends VisibilityStateLeaveInfo<S>[] | VisibilityStateEnterInfo<S>[]
+    T extends CountStateLeaveInfo<S>[] | CountStateEnterInfo<S>[]
   >(
     arr1: T,
     arr2: T
@@ -344,6 +365,8 @@ export abstract class CommonFixedSizeListBuilder<
     item: RenderRangeChangeEntry<T, S>,
     time: number
   ) {
+    this._debug_ &&
+      console.log("collection maybe change", item.index, item.stateInfoList);
     if (!this._rangechange_event) {
       this._rangechange_event = {
         collection: new Map(),
@@ -404,6 +427,7 @@ export abstract class CommonFixedSizeListBuilder<
     if (!info) {
       return;
     }
+    this._debug_ && console.log("emit changes", info);
     const { updateComplete } = this;
     if (this._preCompletedUpdate !== updateComplete) {
       updateComplete.then(() => {
@@ -416,7 +440,7 @@ export abstract class CommonFixedSizeListBuilder<
   }
 
   private __emitRenderRangeChange(
-    info: RenderRangeChangeDetail<T, VisibilityState>
+    info: RenderRangeChangeDetail<T, CountState>
   ) {
     const event = new RenderRangeChangeEvent("renderrangechange", {
       detail: info,
@@ -430,7 +454,8 @@ export abstract class CommonFixedSizeListBuilder<
 
   protected _ani?: ScrollAnimationInfo;
   protected _DEFAULT_ANI_DURACTION = 500; // 每一次触发后，默认运动时间为运动 1s 的时间
-  readonly requestRenderAni = () => {
+  private _requestRenderAni0 = () => this.requestRenderAni(0);
+  readonly requestRenderAni = (duration = 0) => {
     let now: number;
     /// 如果是在交互中，那么持续地更新最后的一个交互时间
     if (this._intouch) {
@@ -438,31 +463,41 @@ export abstract class CommonFixedSizeListBuilder<
     } else {
       now = this._ani ? this._ani.startTime : performance.now();
     }
-    this._requestRenderAni(now, false);
+    this._requestRenderAni(now, false, duration);
   };
-  protected _requestRenderAni = (now: number, force: boolean) => {
+  protected _requestRenderAni = (
+    now: number,
+    force: boolean,
+    duration: number
+  ) => {
     if (this._ani === undefined || force) {
       const ani =
         this._ani ||
         (this._ani = {
           reqFrameId: 0,
-          aniDuration: this._DEFAULT_ANI_DURACTION,
+          aniDuration: duration || 0, // this._DEFAULT_ANI_DURACTION,
           startTime: now,
         });
 
-      this.itemCountStateManager.clearState(now);
+      this._itemCountStateManager.clearState(now);
 
       ani.reqFrameId = requestAnimationFrame(() => {
         const now = performance.now();
-        this._renderItems(now, ani);
         if (ani.startTime + ani.aniDuration > now) {
-          this._requestRenderAni(now, true);
+          this._requestRenderAni(now, true, 0);
         } else {
           this._ani = undefined;
           this._clearAniState();
         }
+        // 放在后面，虽然_requestRenderAni会占用一点时间，但是这能避免 _renderItems 出错带来的问题
+        this._renderItems(now, ani);
       });
     } else {
+      if (duration) {
+        if (this._ani.aniDuration + this._ani.startTime < duration + now) {
+          this._ani.aniDuration = duration;
+        }
+      }
       this._ani.startTime = now;
     }
   };
@@ -475,7 +510,8 @@ export abstract class CommonFixedSizeListBuilder<
     return this._DEFAULT_ANI_DURACTION * scrollScale;
   };
   protected _dampingScrollDiff = (now: number, ani: ScrollAnimationInfo) => {
-    const progress = (now - ani.startTime) / ani.aniDuration;
+    const progress =
+      ani.aniDuration === 0 ? 1 : (now - ani.startTime) / ani.aniDuration;
     if (progress <= 0) {
       return { progress: 0, forward: 1, backward: 0 };
     }
@@ -493,10 +529,13 @@ export abstract class CommonFixedSizeListBuilder<
    * 这里是放大了1e6的精度
    */
   protected virtualScrollTop6e = 0n;
-  get virtualScrollTop() {
+  get virtualScrollTop(): bigint {
     return this.virtualScrollTop6e / bi6e;
   }
-  set virtualScrollTop(v: number | bigint) {
+  set virtualScrollTop(v: string | number | bigint) {
+    if (typeof v === "string") {
+      v = +v;
+    }
     if (typeof v === "number") {
       this.virtualScrollTop6e = to6eBn(v);
     } else {
@@ -601,7 +640,7 @@ export abstract class CommonFixedSizeListBuilder<
     /// 计算virtualScrollTop/virtualScrollBottom
     let virtualScrollTop6e = this.virtualScrollTop6e + to6eBn(scrollDiff);
 
-    this._dev && console.log("virtualScrollTop6e", virtualScrollTop6e);
+    this._debug_ && console.log("virtualScrollTop6e", virtualScrollTop6e);
 
     const MIN_VIRTUAL_SCROLL_TOP_6E = 0n;
     const MAX_VIRTUAL_SCROLL_BOTTOM_6E = this.MAX_VIRTUAL_SCROLL_HEIGHT_6E;
@@ -654,7 +693,7 @@ export abstract class CommonFixedSizeListBuilder<
           {
             index: i,
             node: item,
-            stateInfoList: this.itemCountStateManager
+            stateInfoList: this._itemCountStateManager
               .getStateInfoListByIndex(i)
               .map((stateInfo) => ({
                 id: stateInfo.id,
@@ -687,7 +726,7 @@ export abstract class CommonFixedSizeListBuilder<
         {
           index,
           node,
-          stateInfoList: this.itemCountStateManager
+          stateInfoList: this._itemCountStateManager
             .getStateInfoListByIndex(index)
             .map((stateInfo) => ({
               id: stateInfo.id,
@@ -742,7 +781,6 @@ export abstract class CommonFixedSizeListBuilder<
       // console.log(customScrollEle);
     }
 
-    this._emitRenderRangeChange();
     return {
       virtualScrollTop6e,
       MIN_VIRTUAL_SCROLL_TOP_6E,
@@ -759,8 +797,8 @@ export abstract class CommonFixedSizeListBuilder<
           node: item,
           stateInfoList: [
             {
-              id: this.itemCountStateManager.uniqueStateId,
-              state: this.itemCountStateManager.operateState.leave,
+              id: this._itemCountStateManager.uniqueStateId,
+              state: this._itemCountStateManager.operateState.leave,
               endTime: 0,
             },
           ],
@@ -809,40 +847,31 @@ export class ItemPool<T> {
   }
 }
 
-export type VisibilityStateEnterInfo<
-  S extends VisibilityState = VisibilityState
-> = {
-  id: number;
-  state: S["enter"];
-  endTime: number;
-};
-export type VisibilityStateLeaveInfo<
-  S extends VisibilityState = VisibilityState
-> = {
-  id: number;
-  state: S["leave"];
-  endTime: number;
-};
+export interface CountStateEnterInfo<S extends CountState = CountState>
+  extends StateInfo<S["enter"]> {}
+
+export interface CountStateLeaveInfo<S extends CountState = CountState>
+  extends StateInfo<S["leave"]> {}
 
 export type RenderRangeChangeEntry<
   T extends HTMLElement = HTMLElement,
-  S extends VisibilityState = VisibilityState
+  S extends CountState = CountState
 > =
   | {
       node: VirtualListDefaultItemElement<T>;
       index: bigint;
-      stateInfoList: VisibilityStateEnterInfo<S>[];
+      stateInfoList: CountStateEnterInfo<S>[];
       isIntersecting: true;
     }
   | {
       node: VirtualListDefaultItemElement<T>;
       index: bigint;
-      stateInfoList: VisibilityStateLeaveInfo<S>[];
+      stateInfoList: CountStateLeaveInfo<S>[];
       isIntersecting: false;
     };
 export interface RenderRangeChangeDetail<
   T extends HTMLElement = HTMLElement,
-  S extends VisibilityState = VisibilityState
+  S extends CountState = CountState
 > {
   entries: RenderRangeChangeEntry<T, S>[];
   time: number;
@@ -850,10 +879,25 @@ export interface RenderRangeChangeDetail<
 
 export class RenderRangeChangeEvent<
   T extends HTMLElement = HTMLElement,
-  S extends VisibilityState = VisibilityState
-> extends CustomEvent<RenderRangeChangeDetail<T, S>> {}
+  S extends CountState = CountState
+> extends CustomEvent<RenderRangeChangeDetail<T, S>> {
+  target!: CommonFixedSizeListBuilder<T, S>;
+}
 
 type RenderRangeChangeHanlder<
   T extends HTMLElement = HTMLElement,
-  S extends VisibilityState = VisibilityState
+  S extends CountState = CountState
 > = (event: RenderRangeChangeEvent<T, S>) => unknown;
+
+declare global {
+  interface HTMLFixedSizeVirtualListElementEventMap<
+    T extends HTMLElement,
+    S extends CountState
+  > extends HTMLElementEventMap,
+      WindowEventHandlersEventMap {
+    renderrangechange: import("./common-fixed-size-virtual-list-builder").RenderRangeChangeEvent<
+      T,
+      S
+    >;
+  }
+}

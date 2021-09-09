@@ -1,3 +1,4 @@
+import "./@types";
 export * from "./scroll-viewport";
 export * from "./common-fixed-size-virtual-list-builder";
 export * from "./fixed-size-virtual-list-s2";

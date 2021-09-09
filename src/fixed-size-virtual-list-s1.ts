@@ -1,8 +1,11 @@
 import {
   CommonFixedSizeListBuilder,
+  CountState,
+  DefaultCountState,
   ScrollAnimationInfo,
 } from "./common-fixed-size-virtual-list-builder";
 import { css, customElement, html, query, TemplateResult } from "lit-element";
+import { StateInfo } from "./stateful-item-count";
 
 const fixedNum = (num: number) => {
   return Math.floor(num * 100) / 100;
@@ -30,7 +33,10 @@ export const virtualListViewStyle = css`
 `;
 
 @customElement("fixed-size-virtual-list-s1")
-export class FixedSizeVirtualListS1Element extends CommonFixedSizeListBuilder {
+class FixedSizeVirtualListS1Builder<
+  T extends HTMLElement = HTMLElement,
+  S extends CountState = DefaultCountState
+> extends CommonFixedSizeListBuilder<T, S> {
   static get styles() {
     return [
       ...super.styles,
@@ -78,7 +84,11 @@ export class FixedSizeVirtualListS1Element extends CommonFixedSizeListBuilder {
   render(): TemplateResult {
     return html`
       <slot name="template"></slot>
-      <div id="scroll-ctrl" part="scroll-ctrl" @scroll=${this.requestRenderAni}>
+      <div
+        id="scroll-ctrl"
+        part="scroll-ctrl"
+        @scroll=${() => this.requestRenderAni(this._DEFAULT_ANI_DURACTION)}
+      >
         <div id="virtual-list-view-wrapper">
           <div id="virtual-list-view" part="virtual-list-view">
             <slot></slot>
@@ -149,14 +159,51 @@ export class FixedSizeVirtualListS1Element extends CommonFixedSizeListBuilder {
     }
 
     this._doScroll(scrollDiff, now);
+    // 事件触发要放在最后，以确保自身所有逻辑都做完了，不会被用户的代码所影响
+    this._emitRenderRangeChange();
   }
   protected _clearAniState() {
     this._preScrollDiff = 0;
   }
+  customItemCountStateManager<ES extends CountState, ELE extends HTMLElement>(
+    this: FixedSizeVirtualListS1Element<ELE>,
+    customStateInfoGetter?: (index: bigint) => StateInfo<ES>
+  ) {
+    return FixedSizeVirtualListS1Builder.customItemCountStateManager(
+      this,
+      customStateInfoGetter
+    ) as FixedSizeVirtualListS1Element<ELE, DefaultCountState | ES>;
+  }
 }
+export const FixedSizeVirtualListS1Element = FixedSizeVirtualListS1Builder;
 
 declare global {
   interface HTMLElementTagNameMap {
     "fixed-size-virtual-list-s1": FixedSizeVirtualListS1Element;
+  }
+  interface FixedSizeVirtualListS1Element<
+    T extends HTMLElement = HTMLElement,
+    S extends CountState = DefaultCountState
+  > extends FixedSizeVirtualListS1Builder<T, S> {
+    addEventListener<
+      K extends keyof HTMLFixedSizeVirtualListElementEventMap<T, S>
+    >(
+      type: K,
+      listener: (
+        this: HTMLAnchorElement,
+        ev: HTMLFixedSizeVirtualListElementEventMap<T, S>[K]
+      ) => any,
+      options?: boolean | AddEventListenerOptions
+    ): void;
+    removeEventListener<
+      K extends keyof HTMLFixedSizeVirtualListElementEventMap<T, S>
+    >(
+      type: K,
+      listener: (
+        this: HTMLAnchorElement,
+        ev: HTMLFixedSizeVirtualListElementEventMap<T, S>[K]
+      ) => any,
+      options?: boolean | EventListenerOptions
+    ): void;
   }
 }

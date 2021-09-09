@@ -148,7 +148,7 @@ export class FixedSizeVirtualListS2Element extends CommonFixedSizeListBuilder {
         this._preScrollDiff * this._dampingScrollDiff(now, ani).forward;
     }
 
-    this._dev &&
+    this._debug_ &&
       console.log(
         "scrollUpDiff",
         scrollUpDiff,
@@ -172,6 +172,8 @@ export class FixedSizeVirtualListS2Element extends CommonFixedSizeListBuilder {
       "unscroll",
       virtualScrollTop6e === MAX_VIRTUAL_SCROLL_TOP_6E
     );
+    // 事件触发要放在最后，以确保自身所有逻辑都做完了，不会被用户的代码所影响
+    this._emitRenderRangeChange();
   }
   protected _clearAniState() {
     this._preScrollDiff = 0;

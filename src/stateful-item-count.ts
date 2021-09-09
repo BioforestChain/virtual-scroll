@@ -1,21 +1,18 @@
-export type StateRange<S> = {
-  id: number;
+export interface StateRange<S> extends StateInfo<S> {
   startIndex: bigint;
   endIndex: bigint;
-  state: S;
-  endTime: number;
-};
+}
 
 export type SetStateOptions<S> = {
   state?: S;
   duration?: number;
 };
 
-export type StateInfo<S> = {
+export interface StateInfo<S> {
   state: S;
   endTime: number;
-  id: number;
-};
+  id: number | string;
+}
 
 export class StatefulItemCount<S> {
   /**
@@ -36,7 +33,8 @@ export class StatefulItemCount<S> {
      * 如果是删除元素的动画，首先应该标记存在的元素为将要删除，此时元素还在队列中，随着动画的推移，动画结束时，才会正式执行元素删除。
      * 所以删除元素的动画并不是瞬发，而是有一个过程。
      */
-    public readonly movementState: S
+    public readonly movementState: S,
+    public _customStateInfoGetter?: (index: bigint) => StateInfo<S>
   ) {}
   private _itemCount = 0n;
   public get itemCount() {
@@ -64,6 +62,9 @@ export class StatefulItemCount<S> {
       state: this.defaultState,
       endTime: Infinity,
     });
+    if (this._customStateInfoGetter) {
+      stateInfoList.push(this._customStateInfoGetter(index));
+    }
     return stateInfoList;
   }
   //#region 标记
